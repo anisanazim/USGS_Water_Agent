@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+
+# Type checking / linting
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+
+# IDEs / Editors
+.vscode/
+.idea/
+
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+
+
+# Logs
+*.log
+
+
+# Local / temporary files
+*.tmp
+*.temp
+*.bak
+
+# Project-specific caches
+.deepeval/
+
+# Python egg metadata inside src
+src/ichatbio_usgs_water_agent.egg-info/
+
+# Additional pycache folders not covered by the global rule
+src/__pycache__/
+tests/__pycache__/
+water_agent/metadata/__pycache__/
+water_agent/metadata/references/__pycache__/
