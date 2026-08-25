@@ -1,0 +1,12 @@
+.venv/
+.git/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+.env
+.env.*
+!.env.example
+tests/
+ask.py
+decisions.md
+PROJECT_NOTES.md

@@ -59,6 +59,11 @@ DAILY_FIELD_CONFIG = {
                 "state_postal_code",
                 "state_fips_code",
             ],
+            # state-identifiers is a global country+subdivision table (424
+            # entries, only 65 of them US); without this, "37" is ambiguous
+            # between North Carolina and a Dominican Republic province that
+            # reuses the same FIPS-style number. Scoped to US-only for now.
+            filters={"country_code": "US"},
         ),
     ),
 

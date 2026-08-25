@@ -6,6 +6,10 @@ class ReferenceConfig(BaseModel):
     collection: str
     value_field: str
     search_fields: list[str] = Field(default_factory=list)
+    filters: dict[str, str] = Field(default_factory=dict)
+    """Required property values a feature must match to be indexed/searched.
+    e.g. {"country_code": "US"} scopes a globally-shared reference
+    collection down to what a specific Daily field actually means."""
 
 class ResolutionResult(BaseModel):
     status: Literal["resolved", "not_found", "ambiguous"]

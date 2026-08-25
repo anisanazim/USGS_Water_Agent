@@ -128,15 +128,6 @@ class USGSWaterDataFetcher:
             f"USGS API request failed after {MAX_ATTEMPTS} attempts: {last_exc}"
         ) from last_exc
 
-    async def fetch_monitoring_locations_by_state(self, state_name: str, limit: int = 10) -> list[dict[str, Any]]:
-        url = f"{self.base_url}/collections/monitoring-locations/items"
-        params: dict[str, Any] = {"state_name": state_name, "f": "json", "limit": limit}
-        print(f"[DEBUG][USGS] Fetching monitoring locations by state: state_name={state_name}, limit={limit}")
-        payload = await self._request(url, params)
-        features = payload.get("features", [])
-        print(f"[DEBUG][USGS] State lookup returned {len(features)} monitoring-location features")
-        return features
-
     async def fetch_latest_continuous(
         self,
         site_id: str,
@@ -169,6 +160,41 @@ class USGSWaterDataFetcher:
             "count": len(features),
         }
 
+    async def fetch_daily_values(
+        self,
+        filters: dict[str, str],
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        """Query the Daily collection with arbitrary queryable filters
+        (parameter_code, statistic_id, state_code, monitoring_location_id,
+        etc.). Sorted most-recent-first (`sortby=-time`) rather than date-
+        bounded: a bare filter like state_code with no site or date
+        otherwise returns arbitrary records spanning decades (confirmed
+        empirically), and this server rejects ISO 8601 duration strings
+        like "P30D" for `datetime` despite USGS's own docs listing them as
+        valid - sortby sidesteps needing to guess a "recent" window.
+        """
+        url = f"{self.base_url}/collections/daily/items"
+        params: dict[str, Any] = {
+            **filters,
+            "f": "json",
+            "limit": limit,
+            "sortby": "-time",
+        }
+        request_url = str(httpx.URL(url, params=params))
+
+        print(f"[DEBUG][USGS] Fetching daily values: {request_url}")
+        payload = await self._request(url, params)
+        features = payload.get("features", [])
+        print(f"[DEBUG][USGS] Daily values query returned {len(features)} features")
+
+        return {
+            "filters": filters,
+            "request_url": request_url,
+            "features": features,
+            "count": len(features),
+        }
+
     async def enrich_record_with_latest_continuous(
         self,
         record: dict[str, Any],
@@ -189,7 +215,7 @@ class USGSWaterDataFetcher:
     async def fetch_site_metadata(self, site_id: str) -> dict[str, Any]:
         """Fetch monitoring-location metadata (name, coordinates, drainage
         area, etc.) for a single site. Demonstrates that adding a new
-        collection is just one more method built on `_request` — it gets
+        collection is just one more method built on `_request` - it gets
         retry/backoff and typed exceptions for free.
         """
         normalized_site = self.normalize_site_id(site_id)

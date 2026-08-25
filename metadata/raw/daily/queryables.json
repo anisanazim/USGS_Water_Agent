@@ -141,7 +141,7 @@
     "hydrologic_unit_code": {
       "title": "Hydrologic unit code (HUC)",
       "type": "string",
-      "description": "The hydrologic unit code (HUC) for the monitoring location. Supports prefix matching — querying with a shorter HUC (e.g. \"04\") matches all locations within that hydrologic region.\n"
+      "description": "The hydrologic unit code (HUC) for the monitoring location. Supports prefix matching - querying with a shorter HUC (e.g. \"04\") matches all locations within that hydrologic region.\n"
     },
     "basin_code": {
       "title": "Basin code",
