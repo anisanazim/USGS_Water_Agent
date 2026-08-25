@@ -67,3 +67,7 @@ src/__pycache__/
 tests/__pycache__/
 water_agent/metadata/__pycache__/
 water_agent/metadata/references/__pycache__/
+
+# Additional .md files
+PROJECT_NOTES.md
+decisions.md
