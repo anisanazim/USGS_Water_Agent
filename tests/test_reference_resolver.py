@@ -9,9 +9,8 @@ from water_agent.metadata.resolver import ReferenceResolver
 def create_resolver():
     references_dir = (
         Path(__file__).parent.parent
-        / "src"
-        / "water_agent"
         / "metadata"
+        / "raw"
         / "references"
     )
 
@@ -49,6 +48,22 @@ def test_resolve_state_postal_code():
     assert result.matched_field == "state_postal_code"
 
 
+def test_resolve_state_fips_code_is_not_ambiguous():
+    """state-identifiers is a global country+subdivision table where
+    non-US entries can reuse the same FIPS-style number (e.g. a Dominican
+    Republic province also has state_fips_code "37"). The US-only filter
+    on state_code's ReferenceConfig should keep this resolvable."""
+    resolver = create_resolver()
+
+    result = resolver.resolve(
+        "state_code",
+        "37",
+    )
+
+    assert result.status == "resolved"
+    assert result.resolved_value == "37"
+
+
 def test_unknown_value():
     resolver = create_resolver()
 
@@ -77,9 +92,8 @@ def test_resolution_result():
 def test_ambiguous_reference():
     references_dir = (
         Path(__file__).parent.parent
-        / "src"
-        / "water_agent"
         / "metadata"
+        / "raw"
         / "references"
     )
 
@@ -94,7 +108,7 @@ def test_ambiguous_reference():
     # We will create a temporary index entry with two matches.
     reference = queryable.reference
 
-    store._indexes[reference.collection] = {
+    store._indexes[store._index_key(reference)] = {
         "state_name": {
             "georgia": [
                 {

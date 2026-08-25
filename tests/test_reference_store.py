@@ -5,9 +5,8 @@ from water_agent.metadata.references.store import ReferenceStore
 def test_find_state():
     references_dir = (
         Path(__file__).parent.parent
-        / "src"
-        / "water_agent"
         / "metadata"
+        / "raw"
         / "references"
     )
 
@@ -34,9 +33,8 @@ def test_find_state():
 def test_find_uses_index():
     references_dir = (
         Path(__file__).parent.parent
-        / "src"
-        / "water_agent"
         / "metadata"
+        / "raw"
         / "references"
     )
 
@@ -57,20 +55,18 @@ def test_find_uses_index():
 
     assert len(matches) >= 1
 
-    assert "state-identifiers" in store._indexes
-    assert "state_name" in store._indexes["state-identifiers"]
+    index_key = store._index_key(reference)
+    assert index_key in store._indexes
+    assert "state_name" in store._indexes[index_key]
 
-    assert "north carolina" in store._indexes[
-        "state-identifiers"
-    ]["state_name"]
+    assert "north carolina" in store._indexes[index_key]["state_name"]
 
 
 def test_find_state_by_postal_code():
     references_dir = (
         Path(__file__).parent.parent
-        / "src"
-        / "water_agent"
         / "metadata"
+        / "raw"
         / "references"
     )
 
