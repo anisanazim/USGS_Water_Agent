@@ -38,7 +38,6 @@ DAILY_VALUES_LIMIT = 5
 class USGSWaterAgent(IChatBioAgent):
     def __init__(self):
         super().__init__()
-        self.fetcher = USGSWaterDataFetcher()
         self._query_planner: Optional[QueryPlanner] = None
 
     @property
@@ -71,10 +70,10 @@ class USGSWaterAgent(IChatBioAgent):
         params: Optional[BaseModel],
         metadata: dict[str, Any] | None = None,
     ):
-        print(f"[DEBUG][Agent] run() entrypoint={entrypoint}, request={request!r}, params={params}")
+        logger.debug("run() entrypoint=%s, request=%r, params=%s", entrypoint, request, params)
         handler = self._entrypoint_handlers.get(entrypoint)
         if handler is None:
-            print(f"[DEBUG][Agent] Unknown entrypoint: {entrypoint}")
+            logger.warning("Unknown entrypoint: %s", entrypoint)
             await context.reply(f"Unknown entrypoint: {entrypoint}")
             return
 
@@ -130,6 +129,34 @@ class USGSWaterAgent(IChatBioAgent):
                 await context.reply(plan.clarification_needed, data=plan.model_dump())
                 return
 
+            # Handle Station Inventory Queries
+            if plan.inventory_results is not None and (plan.inventory_results or plan.spatial_results is None):
+                await process.log(f"Found {len(plan.inventory_results)} parameters available at the station.")
+                if not plan.inventory_results:
+                    response_text = "I couldn't find any data parameters associated with that station."
+                else:
+                    response_text = f"Available data parameters for this station:\n\n"
+                    for param_name, dates in plan.inventory_results.items():
+                        response_text += f"- **{param_name}** ({dates['begin']} to {dates['end']})\n"
+                
+                await context.reply(response_text, data=plan.model_dump())
+                return
+
+            # Handle Spatial Queries
+            if plan.spatial_results is not None and (plan.spatial_results or plan.inventory_results is None):
+                await process.log(f"Found {len(plan.spatial_results)} matching monitoring locations.")
+                if not plan.spatial_results:
+                    response_text = "I couldn't find any monitoring locations matching those criteria."
+                else:
+                    response_text = f"Found **{len(plan.spatial_results)}** monitoring locations:\n\n"
+                    for station_id in plan.spatial_results[:50]: # Limit to 50 for readability
+                        response_text += f"- `{station_id}`\n"
+                    if len(plan.spatial_results) > 50:
+                        response_text += f"\n*(...and {len(plan.spatial_results) - 50} more)*"
+                
+                await context.reply(response_text, data=plan.model_dump())
+                return
+
             if not plan.filters:
                 await process.log("No Daily API filters could be resolved.")
                 await context.reply(
@@ -142,9 +169,10 @@ class USGSWaterAgent(IChatBioAgent):
                 f"Resolved parameters: {plan.filters}", data=plan.filters
             )
 
-            result = await self.fetcher.fetch_daily_values(
-                plan.filters, limit=DAILY_VALUES_LIMIT
-            )
+            async with USGSWaterDataFetcher() as fetcher:
+                result = await fetcher.fetch_daily_values(
+                    plan.filters, limit=DAILY_VALUES_LIMIT
+                )
 
             await process.log(
                 f'Final request URL: "{result["request_url"]}"',

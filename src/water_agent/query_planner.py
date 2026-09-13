@@ -16,6 +16,9 @@ from water_agent.metadata.resolver import ReferenceResolver
 from water_agent.tools.queryable_search import QueryableSearchTool
 from water_agent.tools.reference_resolve import ReferenceResolveTool
 from water_agent.tools.reference_search import ReferenceSearchTool
+from water_agent.tools.spatial_query import SpatialQueryTool
+from water_agent.tools.station_inventory import StationInventoryTool
+from usgs_water_data import USGSWaterDataFetcher
 
 DEFAULT_REFERENCES_DIR = (
     Path(__file__).resolve().parents[2] / "metadata" / "raw" / "references"
@@ -27,7 +30,7 @@ SYSTEM_PROMPT = """\
 You turn a natural-language question about USGS Daily water data into a set of
 exact Daily API filters, without ever guessing a USGS code yourself.
 
-You have three tools:
+You have five tools:
 - search_queryables(query): find which Daily field is relevant to a concept
   the user mentioned (e.g. "parameter" -> parameter_code). This searches
   field names/descriptions literally, so use short plain nouns, not the
@@ -42,6 +45,13 @@ You have three tools:
   literally wrote "North Carolina") straight to its USGS code, skipping
   search. It only accepts human-readable terms, never a code you already
   have - a code is not itself a searchable term and will not resolve.
+- spatial_query(parameter_code, state_name, county_name, huc): Use this ONLY if 
+  the user asks "Where is parameter X monitored?". You MUST provide a 
+  geographic constraint (at least state_name). The tool returns a list of 
+  monitoring location IDs.
+- station_inventory(monitoring_location_id): Use this ONLY if the user asks 
+  "What information is available at station X?" or "What data is measured at X?". 
+  It returns a summary of parameters and date ranges available at that specific station.
 
 Typical flow per concept: call search_reference with your best guess at
 USGS terminology, then use the `resolved_value` of the best/only match
@@ -61,7 +71,8 @@ search using the field's technical term before finalizing.
 
 When you are done, respond with ONLY a JSON object (no prose, no markdown
 fences) of the form:
-{"semantic": {"<concept>": "<plain-language phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "clarification_needed": null}
+{"semantic": {"<concept>": "<plain-language phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "spatial_results": ["USGS-...", ...], "inventory_results": {"<Parameter Name>": {"begin": "...", "end": "..."}}, "clarification_needed": null}
+(Omit the `spatial_results` or `inventory_results` keys entirely if you did not call their respective tools).
 
 `semantic` is a short, plain-language summary of what you understood the
 user to be asking for - in the user's own words/concepts (e.g.
@@ -70,6 +81,10 @@ NOT USGS terminology or codes. Only include concepts the user actually
 mentioned. Do not include a time range - date filtering isn't supported
 yet, so leave any time period out of `semantic` entirely rather than
 stating something that won't affect the actual query.
+
+If the user asks "Where is parameter X monitored?" but DOES NOT provide a 
+geographic constraint (e.g. state or county), you MUST NOT call spatial_query. 
+Instead, set `clarification_needed` and ask them to narrow their search by state or county.
 
 If the question is ambiguous (e.g. multiple plausible fields or values and
 you cannot tell which the user means), instead respond with:
@@ -139,12 +154,67 @@ TOOL_SCHEMAS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "spatial_query",
+            "description": (
+                "Discover monitoring locations that measure a specific parameter in a geographic area. "
+                "Use this when the user asks 'Where is X monitored in Y?'. Returns a list of station IDs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "parameter_code": {
+                        "type": "string",
+                        "description": "The exact 5-digit parameter_code to search for (e.g. '00300'). MUST be resolved first.",
+                    },
+                    "state_name": {
+                        "type": "string",
+                        "description": "The full state name (e.g. 'Florida').",
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "Optional county name (e.g. 'Leon County').",
+                    },
+                    "huc": {
+                        "type": "string",
+                        "description": "Optional hydrologic unit code.",
+                    },
+                },
+                "required": ["parameter_code", "state_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "station_inventory",
+            "description": (
+                "Discover what parameters/information are available at a specific monitoring location. "
+                "Use this when the user asks 'What information is available at station X?'. "
+                "Returns a dictionary of parameters and their date ranges."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "monitoring_location_id": {
+                        "type": "string",
+                        "description": "The exact USGS station ID (e.g. 'USGS-02238500').",
+                    },
+                },
+                "required": ["monitoring_location_id"],
+            },
+        },
+    },
 ]
 
 
 class QueryPlan(BaseModel):
     semantic: dict[str, str] = Field(default_factory=dict)
-    filters: dict[str, str]
+    filters: dict[str, str] = Field(default_factory=dict)
+    spatial_results: list[str] | None = None
+    inventory_results: dict | None = None
     clarification_needed: str | None = None
     ambiguous_candidates: list[str] = Field(default_factory=list)
 
@@ -178,16 +248,21 @@ class QueryPlanner:
             "search_queryables": QueryableSearchTool(registry).search,
             "search_reference": ReferenceSearchTool(resolver).search,
             "resolve_reference": ReferenceResolveTool(resolver).resolve,
+            "spatial_query": SpatialQueryTool(USGSWaterDataFetcher(), resolver).find_stations,
+            "station_inventory": StationInventoryTool(USGSWaterDataFetcher()).get_inventory,
         }
 
-    def _call_tool(self, name: str, arguments: dict) -> dict | list:
+    async def _call_tool(self, name: str, arguments: dict) -> dict | list:
         tool_fn = self._dispatch.get(name)
         if tool_fn is None:
             return {"error": f"Unknown tool: {name}"}
 
         try:
+            import inspect
+            if inspect.iscoroutinefunction(tool_fn) or inspect.iscoroutinefunction(getattr(tool_fn, "__func__", None)):
+                return await tool_fn(**arguments)
             return tool_fn(**arguments)
-        except (ValueError, TypeError) as exc:
+        except Exception as exc:
             return {"error": str(exc)}
 
     async def plan(self, question: str) -> QueryPlan:
@@ -220,7 +295,7 @@ class QueryPlanner:
 
             for tool_call in message.tool_calls:
                 arguments = json.loads(tool_call.function.arguments or "{}")
-                result = self._call_tool(tool_call.function.name, arguments)
+                result = await self._call_tool(tool_call.function.name, arguments)
                 messages.append(
                     {
                         "role": "tool",
