@@ -392349,38 +392349,38 @@
       "type": "application/geo+json",
       "rel": "self",
       "title": "This document as GeoJSON",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes/items?f=json&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes/items?f=json&limit=10000"
     },
     {
       "rel": "alternate",
       "type": "application/ld+json",
       "title": "This document as RDF (JSON-LD)",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes/items?f=jsonld&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes/items?f=jsonld&limit=10000"
     },
     {
       "type": "text/html",
       "rel": "alternate",
       "title": "This document as HTML",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes/items?f=html&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes/items?f=html&limit=10000"
     },
     {
       "type": "text/csv; charset=utf-8",
       "rel": "alternate",
       "title": "This document as CSV",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes/items?f=csv&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes/items?f=csv&limit=10000"
     },
     {
       "type": "application/geo+json",
       "rel": "next",
       "title": "Items (next)",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes/items?f=json&offset=10000&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes/items?f=json&offset=10000&limit=10000"
     },
     {
       "type": "application/json",
       "title": "Parameter codes",
       "rel": "collection",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/parameter-codes"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/parameter-codes"
     }
   ],
-  "timeStamp": "2026-08-24T13:06:01.192978Z"
+  "timeStamp": "2026-09-13T09:01:26.466872Z"
 }

@@ -31889,32 +31889,32 @@
       "type": "application/geo+json",
       "rel": "self",
       "title": "This document as GeoJSON",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/statistic-codes/items?f=json&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/statistic-codes/items?f=json&limit=10000"
     },
     {
       "rel": "alternate",
       "type": "application/ld+json",
       "title": "This document as RDF (JSON-LD)",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/statistic-codes/items?f=jsonld&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/statistic-codes/items?f=jsonld&limit=10000"
     },
     {
       "type": "text/html",
       "rel": "alternate",
       "title": "This document as HTML",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/statistic-codes/items?f=html&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/statistic-codes/items?f=html&limit=10000"
     },
     {
       "type": "text/csv; charset=utf-8",
       "rel": "alternate",
       "title": "This document as CSV",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/statistic-codes/items?f=csv&limit=10000"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/statistic-codes/items?f=csv&limit=10000"
     },
     {
       "type": "application/json",
       "title": "Statistic codes",
       "rel": "collection",
-      "href": "https://api.waterdata.usgs.gov/ogcapi/v0/collections/statistic-codes"
+      "href": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/statistic-codes"
     }
   ],
-  "timeStamp": "2026-08-24T16:35:15.281673Z"
+  "timeStamp": "2026-09-13T21:42:44.098426Z"
 }
