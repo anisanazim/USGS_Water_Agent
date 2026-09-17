@@ -129,30 +129,87 @@ class USGSWaterAgent(IChatBioAgent):
                 await context.reply(plan.clarification_needed, data=plan.model_dump())
                 return
 
+            if plan.filters:
+                await process.log(
+                    f"Resolved parameters: {plan.filters}", data=plan.filters
+                )
+
             # Handle Station Inventory Queries
             if plan.inventory_results is not None and (plan.inventory_results or plan.spatial_results is None):
-                await process.log(f"Found {len(plan.inventory_results)} parameters available at the station.")
-                if not plan.inventory_results:
-                    response_text = "I couldn't find any data parameters associated with that station."
+                # We expect inventory_results to be a dict with "parameters" and "request_url"
+                params_dict = plan.inventory_results.get("parameters", {})
+                req_url = plan.inventory_results.get("request_url", "")
+                
+                if req_url:
+                    await process.log(f'Final request URL: "{req_url}"', data={"url": req_url})
+                
+                # Check if the user asked about a SPECIFIC parameter (Workflow 3)
+                requested_param_code = plan.filters.get("parameter_code")
+                
+                if requested_param_code:
+                    if requested_param_code in params_dict:
+                        param_data = params_dict[requested_param_code]
+                        count = param_data.get("estimated_daily_records")
+                        await process.log(f"Found parameter {param_data['name']} with estimated count {count}.")
+                        
+                        if count is not None:
+                            response_text = f"There are an estimated **{count:,} daily records** for {param_data['name']} at this station, collected from {param_data['begin']} to {param_data['end']}."
+                        else:
+                            response_text = f"Data for {param_data['name']} is available at this station from {param_data['begin']} to {param_data['end']}, but I could not estimate the exact number of records."
+                    else:
+                        await process.log(f"Parameter code {requested_param_code} not found at station.")
+                        response_text = "I couldn't find any data for that specific parameter at this station."
                 else:
-                    response_text = f"Available data parameters for this station:\n\n"
-                    for param_name, dates in plan.inventory_results.items():
-                        response_text += f"- **{param_name}** ({dates['begin']} to {dates['end']})\n"
+                    # General station inventory (Workflow 2)
+                    await process.log(f"Found {len(params_dict)} parameters available at the station.")
+                    if not params_dict:
+                        response_text = "I couldn't find any data parameters associated with that station."
+                    else:
+                        response_text = f"Available data parameters for this station:\n\n"
+                        for param_code, param_data in params_dict.items():
+                            count_str = f" (~{param_data['estimated_daily_records']:,} records)" if param_data.get("estimated_daily_records") is not None else ""
+                            response_text += f"- **{param_data['name']}** ({param_data['begin']} to {param_data['end']}){count_str}\n"
+                
+                await process.create_artifact(
+                    mimetype="application/json",
+                    description="USGS Station Inventory",
+                    content=json.dumps(plan.inventory_results, indent=2).encode("utf-8"),
+                    metadata={"count": len(params_dict)},
+                )
                 
                 await context.reply(response_text, data=plan.model_dump())
                 return
 
             # Handle Spatial Queries
             if plan.spatial_results is not None and (plan.spatial_results or plan.inventory_results is None):
-                await process.log(f"Found {len(plan.spatial_results)} matching monitoring locations.")
-                if not plan.spatial_results:
+                stations = plan.spatial_results.get("stations", [])
+                req_url = plan.spatial_results.get("request_url", "")
+                meta_url = plan.spatial_results.get("metadata_url", "")
+                
+                urls = [req_url]
+                if meta_url:
+                    urls.append(meta_url)
+                
+                for u in urls:
+                    if u:
+                        await process.log(f'Final request URL: "{u}"', data={"url": u})
+                
+                await process.log(f"Found {len(stations)} matching monitoring locations.")
+                if not stations:
                     response_text = "I couldn't find any monitoring locations matching those criteria."
                 else:
-                    response_text = f"Found **{len(plan.spatial_results)}** monitoring locations:\n\n"
-                    for station_id in plan.spatial_results[:50]: # Limit to 50 for readability
+                    response_text = f"Found **{len(stations)}** monitoring locations:\n\n"
+                    for station_id in stations[:50]: # Limit to 50 for readability
                         response_text += f"- `{station_id}`\n"
-                    if len(plan.spatial_results) > 50:
-                        response_text += f"\n*(...and {len(plan.spatial_results) - 50} more)*"
+                    if len(stations) > 50:
+                        response_text += f"\n*(...and {len(stations) - 50} more)*"
+                
+                await process.create_artifact(
+                    mimetype="application/json",
+                    description="USGS Spatial Query Results",
+                    content=json.dumps(plan.spatial_results, indent=2).encode("utf-8"),
+                    metadata={"count": len(stations)},
+                )
                 
                 await context.reply(response_text, data=plan.model_dump())
                 return
@@ -164,10 +221,6 @@ class USGSWaterAgent(IChatBioAgent):
                     data=plan.model_dump(),
                 )
                 return
-
-            await process.log(
-                f"Resolved parameters: {plan.filters}", data=plan.filters
-            )
 
             async with USGSWaterDataFetcher() as fetcher:
                 result = await fetcher.fetch_daily_values(

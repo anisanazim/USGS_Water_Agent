@@ -50,8 +50,9 @@ You have five tools:
   geographic constraint (at least state_name). The tool returns a list of 
   monitoring location IDs.
 - station_inventory(monitoring_location_id): Use this ONLY if the user asks 
-  "What information is available at station X?" or "What data is measured at X?". 
-  It returns a summary of parameters and date ranges available at that specific station.
+  "What information is available at station X?", "What data is measured at X?", 
+  or "How many records for parameter Y are available at station X?". 
+  It returns a summary of parameters, date ranges, and record counts.
 
 Typical flow per concept: call search_reference with your best guess at
 USGS terminology, then use the `resolved_value` of the best/only match
@@ -69,9 +70,11 @@ sub-measurement, a time-basis suffix) rather than the plain base term, that
 is a signal you haven't found the right USGS word yet - try one more
 search using the field's technical term before finalizing.
 
+CRITICAL: If the user asks about a specific parameter (e.g. "How many dissolved oxygen records..."), you MUST resolve that parameter using `search_reference` and include it in the `filters` object (e.g. `"parameter_code": "00300"`), even if the tool you call (like `station_inventory`) does not require it as an argument!
+
 When you are done, respond with ONLY a JSON object (no prose, no markdown
 fences) of the form:
-{"semantic": {"<concept>": "<plain-language phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "spatial_results": ["USGS-...", ...], "inventory_results": {"<Parameter Name>": {"begin": "...", "end": "..."}}, "clarification_needed": null}
+{"semantic": {"<concept>": "<plain-language phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "spatial_results": true, "inventory_results": true, "clarification_needed": null}
 (Omit the `spatial_results` or `inventory_results` keys entirely if you did not call their respective tools).
 
 `semantic` is a short, plain-language summary of what you understood the
@@ -192,8 +195,8 @@ TOOL_SCHEMAS = [
             "name": "station_inventory",
             "description": (
                 "Discover what parameters/information are available at a specific monitoring location. "
-                "Use this when the user asks 'What information is available at station X?'. "
-                "Returns a dictionary of parameters and their date ranges."
+                "Use this when the user asks 'What information is available at station X?' or 'How many records for parameter Y are at station X?'. "
+                "Returns a dictionary of parameters and their date ranges and counts."
             ),
             "parameters": {
                 "type": "object",
@@ -210,11 +213,13 @@ TOOL_SCHEMAS = [
 ]
 
 
+from typing import Any
+
 class QueryPlan(BaseModel):
     semantic: dict[str, str] = Field(default_factory=dict)
     filters: dict[str, str] = Field(default_factory=dict)
-    spatial_results: list[str] | None = None
-    inventory_results: dict | None = None
+    spatial_results: Any = None
+    inventory_results: Any = None
     clarification_needed: str | None = None
     ambiguous_candidates: list[str] = Field(default_factory=list)
 
@@ -260,12 +265,27 @@ class QueryPlanner:
         try:
             import inspect
             if inspect.iscoroutinefunction(tool_fn) or inspect.iscoroutinefunction(getattr(tool_fn, "__func__", None)):
-                return await tool_fn(**arguments)
-            return tool_fn(**arguments)
+                result = await tool_fn(**arguments)
+            else:
+                result = tool_fn(**arguments)
+                
+            # Stash massive results so we don't blow up the LLM context window
+            if name == "spatial_query":
+                self._last_spatial_results = result
+                return {"count": len(result.get("stations", [])), "message": "Results stashed. Set spatial_results to true in final JSON."}
+                
+            if name == "station_inventory":
+                self._last_inventory_results = result
+                return {"count": len(result.get("parameters", {})), "message": "Results stashed. Set inventory_results to true in final JSON."}
+                
+            return result
         except Exception as exc:
             return {"error": str(exc)}
 
     async def plan(self, question: str) -> QueryPlan:
+        self._last_spatial_results = None
+        self._last_inventory_results = None
+        
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": question},
@@ -287,6 +307,13 @@ class QueryPlanner:
 
             if not message.tool_calls:
                 result_plan = self._parse_plan(message.content or "")
+                
+                # Inject stashed results back into the plan
+                if self._last_spatial_results is not None:
+                    result_plan.spatial_results = self._last_spatial_results
+                if self._last_inventory_results is not None:
+                    result_plan.inventory_results = self._last_inventory_results
+                    
                 if result_plan.clarification_needed:
                     result_plan.ambiguous_candidates = last_candidates
                 return result_plan
@@ -348,11 +375,20 @@ class QueryPlanner:
 
     @staticmethod
     def _parse_plan(content: str) -> QueryPlan:
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        elif content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+            
         try:
             data = json.loads(content)
             return QueryPlan(**data)
         except (json.JSONDecodeError, TypeError, ValueError):
             return QueryPlan(
                 filters={},
-                clarification_needed=content or "I couldn't determine the query filters.",
+                clarification_needed="I encountered an error planning the query. Please try rephrasing your question.",
             )
