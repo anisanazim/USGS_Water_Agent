@@ -13,32 +13,61 @@ async def test_get_inventory(mock_fetcher):
     # Setup mock data for time-series-metadata
     mock_fetcher.fetch_time_series_metadata.return_value = {
         "features": [
-            # Discharge (00060) multiple time ranges (e.g. daily mean vs daily max)
-            {"properties": {"parameter_name": "Discharge", "begin": "2000-01-01", "end": "2010-01-01"}},
-            {"properties": {"parameter_name": "Discharge", "begin": "1995-01-01", "end": "2023-01-01"}},
-            # Gage height (00065) missing begin/end
-            {"properties": {"parameter_name": "Gage height"}},
-            # Dissolved oxygen
-            {"properties": {"parameter_name": "Dissolved oxygen", "begin": "2020-05-01", "end": "Unknown"}}
+            {
+                "properties": {
+                    "parameter_code": "00060",
+                    "parameter_name": "Discharge",
+                    "begin": "2000-01-01T00:00:00Z",
+                    "end": "2023-01-01T00:00:00Z"
+                }
+            },
+            {
+                "properties": {
+                    "parameter_code": "00060",
+                    "parameter_name": "Discharge",
+                    "begin": "1995-01-01T00:00:00Z",
+                    "end": "2010-01-01T00:00:00Z"
+                }
+            },
+            {
+                "properties": {
+                    "parameter_code": "00065",
+                    "parameter_name": "Gage height"
+                }
+            },
+            {
+                "properties": {
+                    "parameter_code": "00300",
+                    "parameter_name": "Dissolved oxygen",
+                    "begin": "2020-05-01T00:00:00Z"
+                }
+            }
         ]
     }
 
     tool = StationInventoryTool(mock_fetcher)
     
-    inventory = await tool.get_inventory("USGS-12345678")
+    inventory_result = await tool.get_inventory("USGS-12345678")
+    inventory = inventory_result["parameters"]
     
-    assert "Discharge" in inventory
+    assert "00060" in inventory
+    assert inventory["00060"]["name"] == "Discharge"
     # It should pick the earliest begin and latest end
-    assert inventory["Discharge"]["begin"] == "1995-01-01"
-    assert inventory["Discharge"]["end"] == "2023-01-01"
+    assert inventory["00060"]["begin"] == "1995-01-01T00:00:00Z"
+    assert inventory["00060"]["end"] == "2023-01-01T00:00:00Z"
+    assert inventory["00060"]["estimated_daily_records"] == 10228
     
-    assert "Gage height" in inventory
-    assert inventory["Gage height"]["begin"] == "Unknown"
-    assert inventory["Gage height"]["end"] == "Unknown"
+    assert "00065" in inventory
+    assert inventory["00065"]["name"] == "Gage height"
+    assert inventory["00065"]["begin"] == "Unknown"
+    assert inventory["00065"]["end"] == "Unknown"
+    assert inventory["00065"]["estimated_daily_records"] is None
     
-    assert "Dissolved oxygen" in inventory
-    assert inventory["Dissolved oxygen"]["begin"] == "2020-05-01"
-    assert inventory["Dissolved oxygen"]["end"] == "Unknown"
+    assert "00300" in inventory
+    assert inventory["00300"]["name"] == "Dissolved oxygen"
+    assert inventory["00300"]["begin"] == "2020-05-01T00:00:00Z"
+    assert inventory["00300"]["end"] == "Unknown"
+    assert inventory["00300"]["estimated_daily_records"] is None
     
     # Verify the fetcher was called correctly
     mock_fetcher.fetch_time_series_metadata.assert_called_once_with(
@@ -50,5 +79,5 @@ async def test_get_inventory(mock_fetcher):
 async def test_get_inventory_empty(mock_fetcher):
     mock_fetcher.fetch_time_series_metadata.return_value = {"features": []}
     tool = StationInventoryTool(mock_fetcher)
-    inventory = await tool.get_inventory("USGS-000")
-    assert inventory == {}
+    inventory_result = await tool.get_inventory("USGS-000")
+    assert inventory_result["parameters"] == {}
