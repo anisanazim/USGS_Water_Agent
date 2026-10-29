@@ -140,3 +140,68 @@ def test_ambiguous_reference():
     assert result.status == "ambiguous"
     assert result.input_value == "Georgia"
     assert len(result.candidates) == 2
+
+
+def test_resolve_discrete_calcium_spatial_returns_family_union():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "calcium", query_type="spatial")
+
+    assert result.status == "resolved"
+    assert result.modality == "discrete"
+    assert set(result.resolved_values) == {"00910", "00915", "00916", "00918"}
+
+
+def test_resolve_discrete_calcium_value_returns_family_pcodes_no_auto_resolve():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "calcium", query_type="value")
+
+    assert result.status == "resolved"
+    assert result.modality == "discrete"
+    assert set(result.resolved_values) == {"00910", "00915", "00916", "00918"}
+
+
+def test_resolve_discrete_exact_pcode():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "00915", query_type="value")
+
+    assert result.status == "resolved"
+    assert result.resolved_values == ["00915"]
+    assert result.resolved_value == "00915"
+
+
+def test_resolve_discrete_ph():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "ph", query_type="value")
+
+    assert result.status == "resolved"
+    assert result.modality == "discrete"
+    assert "00400" in result.resolved_values
+    assert "00403" in result.resolved_values
+
+
+def test_resolve_discrete_organic_carbon():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "organic carbon", query_type="value")
+
+    assert result.status == "resolved"
+    assert result.modality == "discrete"
+    assert set(result.resolved_values) == {"00680", "00681"}
+
+
+def test_resolve_discrete_nitrate_flat_lookup():
+    resolver = create_resolver()
+    result = resolver.resolve("parameter_code", "nitrate", query_type="value")
+
+    assert result.status == "resolved"
+    assert result.modality == "discrete"
+    assert len(result.resolved_values) == 13
+    assert "00630" in result.resolved_values
+    assert "00618" in result.resolved_values
+
+
+def test_resolve_parameter_medium_disambiguation():
+    resolver = create_resolver()
+    # Continuous lookup where medium defaults to Water filters out Sediment matches
+    result = resolver.resolve("parameter_code", "Total nitrogen, ss", medium="Water")
+    assert result.status == "resolved"
+    assert result.resolved_value == "00601"

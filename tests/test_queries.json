@@ -1,0 +1,95 @@
+[
+  {
+    "id": "spatial_chlorophyll_wake_nc",
+    "category": "Spatial Station Discovery",
+    "query": "Where is chlorophyll a monitored in Wake County, North Carolina?",
+    "expected_intent": "spatial_discovery",
+    "expected_modality": "discrete",
+    "key_terms": ["FALLS LAKE", "USGS-0208703650", "chlorophyll"]
+  },
+  {
+    "id": "spatial_streamflow_wake_nc",
+    "category": "Spatial Station Discovery",
+    "query": "Where is streamflow monitored in Wake County, North Carolina?",
+    "expected_intent": "spatial_discovery",
+    "expected_modality": "continuous",
+    "key_terms": ["monitoring locations", "USGS-"]
+  },
+  {
+    "id": "spatial_nitrate_wake_nc",
+    "category": "Spatial Station Discovery",
+    "query": "Where is nitrate monitored in Wake County, NC?",
+    "expected_intent": "spatial_discovery",
+    "expected_modality": "discrete",
+    "key_terms": ["nitrate", "USGS-"]
+  },
+  {
+    "id": "spatial_phosphorus_wake_nc",
+    "category": "Spatial Station Discovery",
+    "query": "Where is phosphorus monitored in Wake County, NC",
+    "expected_intent": "spatial_discovery",
+    "expected_modality": "discrete",
+    "key_terms": ["phosphorus", "USGS-"]
+  },
+  {
+    "id": "inventory_usgs_0423205010",
+    "category": "Dual-Modality Station Inventory",
+    "query": "What information is available at USGS-0423205010?",
+    "expected_intent": "station_inventory",
+    "key_terms": ["USGS-0423205010"]
+  },
+  {
+    "id": "count_phosphorus_0423205010",
+    "category": "Station Parameter Counts",
+    "query": "How many phosphorus records are at USGS-0423205010?",
+    "expected_intent": "station_parameter_count",
+    "key_terms": ["phosphorus", "USGS-0423205010"]
+  },
+  {
+    "id": "count_calcium_02087946",
+    "category": "Station Parameter Counts",
+    "query": "How many calcium measurements are at USGS-02087946?",
+    "expected_intent": "station_parameter_count",
+    "key_terms": ["calcium", "USGS-02087946"]
+  },
+  {
+    "id": "values_calcium_0423205010",
+    "category": "Discrete Observation Values",
+    "query": "Show me the calcium values at USGS-0423205010",
+    "expected_intent": "observation",
+    "expected_modality": "discrete",
+    "key_terms": ["calcium", "USGS-0423205010"]
+  },
+  {
+    "id": "values_nitrate_02087500",
+    "category": "Discrete Observation Values",
+    "query": "Show me the nitrate readings at USGS-02087500",
+    "expected_intent": "observation",
+    "expected_modality": "discrete",
+    "key_terms": ["nitrate", "USGS-02087500"]
+  },
+  {
+    "id": "continuous_max_streamflow_nc",
+    "category": "Continuous Daily Value Queries",
+    "query": "What is the maximum streamflow in North Carolina?",
+    "expected_intent": "observation",
+    "expected_modality": "continuous",
+    "key_terms": ["streamflow", "USGS-02093000", "22.3"]
+  },
+  {
+    "id": "continuous_mean_discharge_02087500",
+    "category": "Continuous Daily Value Queries",
+    "query": "Show me the mean daily discharge at station USGS-02087500.",
+    "expected_intent": "observation",
+    "expected_modality": "continuous",
+    "key_terms": ["USGS-02087500"]
+  },
+  {
+    "id": "continuous_latest_gage_height_02087500",
+    "category": "Continuous Daily Value Queries",
+    "query": "What is the latest gage height at USGS-02087500?",
+    "expected_intent": "observation",
+    "expected_modality": "continuous",
+    "key_terms": ["USGS-02087500"]
+  }
+]

@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from water_agent.tools.station_inventory import StationInventoryTool
 
+from usgs_water_data import PagedResult
+
 @pytest.fixture
 def mock_fetcher():
     fetcher = MagicMock()
@@ -11,8 +13,9 @@ def mock_fetcher():
 @pytest.mark.asyncio
 async def test_get_inventory(mock_fetcher):
     # Setup mock data for time-series-metadata
-    mock_fetcher.fetch_time_series_metadata.return_value = {
-        "features": [
+    mock_fetcher.fetch_time_series_metadata.return_value = PagedResult(
+        source_urls=["mock_url"],
+        features=[
             {
                 "properties": {
                     "parameter_code": "00060",
@@ -43,7 +46,7 @@ async def test_get_inventory(mock_fetcher):
                 }
             }
         ]
-    }
+    )
 
     tool = StationInventoryTool(mock_fetcher)
     
@@ -72,12 +75,14 @@ async def test_get_inventory(mock_fetcher):
     # Verify the fetcher was called correctly
     mock_fetcher.fetch_time_series_metadata.assert_called_once_with(
         filters={"monitoring_location_id": "USGS-12345678"},
-        limit=2000
+        limit=10000
     )
 
 @pytest.mark.asyncio
 async def test_get_inventory_empty(mock_fetcher):
-    mock_fetcher.fetch_time_series_metadata.return_value = {"features": []}
+    mock_fetcher.fetch_time_series_metadata.return_value = PagedResult(source_urls=[], features=[])
     tool = StationInventoryTool(mock_fetcher)
     inventory_result = await tool.get_inventory("USGS-000")
+    
     assert inventory_result["parameters"] == {}
+    assert inventory_result["request_url"] == ""

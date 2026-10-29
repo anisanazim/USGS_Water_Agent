@@ -1,0 +1,29 @@
+{
+  "query": "How many phosphorus records are at USGS-0423205010?",
+  "station_id": "USGS-0423205010",
+  "parameter": "phosphorus",
+  "usgs_api_payload": {
+    "recordCount": 12337,
+    "pcodeCounts": {
+      "00665": 2040,
+      "00660": 1968,
+      "00671": 1771,
+      "70507": 1500,
+      "00650": 1200,
+      "71886": 1000,
+      "00666": 850,
+      "00662": 600,
+      "99891": 450,
+      "01072": 300,
+      "71888": 250,
+      "52635": 200,
+      "99122": 150,
+      "00673": 100,
+      "52527": 80,
+      "99893": 50,
+      "91004": 28
+    }
+  },
+  "agent_response": "Found **12,337** total discrete measurements for **phosphorus** at **USGS-0423205010**.\n\nConstituent parameter codes included in this query:\n| Parameter Code | Description | Unit |\n| :---: | --- | :---: |\n| **00665** | Phosphorus as phosphorus, water, unfiltered | mg/l as P |\n| **00660** | Orthophosphate as orthophosphate, water, filtered | mg/l asPO4 |\n| **00671** | Orthophosphate as phosphorus, water, filtered | mg/l as P |\n\nModality: discrete sample measurements (not continuous sensors).\nSample media: Water."
+}
+

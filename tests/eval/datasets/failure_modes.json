@@ -1,0 +1,133 @@
+[
+  {
+    "id": "FM-01",
+    "name": "ZERO_DISCOVERY",
+    "description": "Spatial query for an analyte in a county with 0 monitoring stations. Must emit 0-station discovery plan without retrying or hallucinating stations.",
+    "query": "Where is nitrate monitored in Dare County, NC?",
+    "expected_planner": {
+      "intent": "spatial_discovery",
+      "modality": "discrete",
+      "filters": {
+        "state_name": "North Carolina",
+        "county_name": "Dare"
+      }
+    },
+    "routing_verification": {
+      "expected_fips": "37055",
+      "expected_parameter": "nitrate"
+    }
+  },
+  {
+    "id": "FM-02",
+    "name": "MISSING_GEO",
+    "description": "Spatial query without geographic constraint. Must NOT query all national stations; must trigger clarification.",
+    "query": "Where is streamflow monitored?",
+    "expected_planner": {
+      "intent": "clarification",
+      "clarification_gist_keywords": ["state", "county", "location", "narrow", "where"]
+    }
+  },
+  {
+    "id": "FM-03",
+    "name": "MODALITY_COLLISION",
+    "description": "Streamflow request at a specific station. Must route to continuous daily endpoint, not lab samples /results/narrow.",
+    "query": "Show me streamflow at USGS-02087500",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "continuous",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00060"
+      }
+    },
+    "routing_verification": {
+      "endpoint_type": "continuous_daily",
+      "target_pcode": "00060"
+    }
+  },
+  {
+    "id": "FM-04",
+    "name": "MULTI_PCODE_EXPANSION",
+    "description": "Discrete family query for calcium. Must expand into 4 constituent codes with 00915 primary, without duplicate counting.",
+    "query": "How many calcium records are at USGS-0423205010?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-0423205010",
+        "parameter_code": "calcium"
+      }
+    },
+    "routing_verification": {
+      "expected_family": "calcium",
+      "expected_codes_count": 4,
+      "primary_pcode": "00915",
+      "constituent_codes": ["00915", "00916", "00910", "00918"]
+    }
+  },
+  {
+    "id": "FM-05",
+    "name": "FRACTION_DISAMBIGUATION",
+    "description": "Specific fraction query (filtered orthophosphate). Must resolve to dissolved codes, excluding unfiltered codes.",
+    "query": "Show me filtered orthophosphate at USGS-0423205010",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "discrete",
+      "filters": {
+        "monitoring_location_id": "USGS-0423205010"
+      }
+    },
+    "routing_verification": {
+      "acceptable_pcodes": ["00660", "00671"],
+      "forbidden_pcodes": ["00665", "70507"]
+    }
+  },
+  {
+    "id": "FM-06",
+    "name": "INVALID_STATION_ID",
+    "description": "Station query for a non-existent station ID. Must plan correctly and fail fast with clean 404 handling.",
+    "query": "What is measured at USGS-00000000?",
+    "expected_planner": {
+      "intent": "station_inventory",
+      "filters": {
+        "monitoring_location_id": "USGS-00000000"
+      }
+    },
+    "routing_verification": {
+      "target_station": "USGS-00000000",
+      "expected_error": "USGSNotFoundError"
+    }
+  },
+  {
+    "id": "FM-07",
+    "name": "MULTIPLE_CANDIDATES",
+    "description": "County query without state disambiguation (Orange County exists across multiple states). Must clarify state.",
+    "query": "Where is nitrate monitored in Orange County?",
+    "expected_planner": {
+      "intent": "clarification",
+      "clarification_gist_keywords": ["state", "which state"]
+    }
+  },
+  {
+    "id": "FM-08",
+    "name": "NO_PARAMETER",
+    "description": "Broad request for measurements at a station without specifying a parameter. Must route to station_inventory or clarify parameter.",
+    "query": "Show me measurements at USGS-02087500",
+    "expected_planner": {
+      "acceptable_intents": ["station_inventory", "clarification"],
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      }
+    }
+  },
+  {
+    "id": "FM-09",
+    "name": "TOOL_FAILURE",
+    "description": "Upstream service returns 503/429/timeout. Circuit breaker trips and returns a friendly outage response.",
+    "query": "Show me calcium readings at USGS-0423205010",
+    "expected_behavior": {
+      "circuit_breaker_tripped": true,
+      "expected_status_code": 503,
+      "user_friendly_message_required": true
+    }
+  }
+]
