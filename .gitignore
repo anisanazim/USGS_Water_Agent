@@ -15,8 +15,7 @@ dist/
 *.egg-info/
 .eggs/
 
-
-# Testing
+# Testing & Coverage
 .pytest_cache/
 .coverage
 .coverage.*
@@ -24,17 +23,22 @@ htmlcov/
 .tox/
 .nox/
 
+# Test reporting & evaluation artifacts
+allure-report/
+allure-results/
+.deepeval/
+
+# Scratch & local experiments
+scratch/
 
 # Type checking / linting
 .mypy_cache/
 .pyre/
 .ruff_cache/
 
-
 # IDEs / Editors
 .vscode/
 .idea/
-
 
 # OS
 .DS_Store
@@ -46,28 +50,28 @@ Desktop.ini
 .env.*
 !.env.example
 
-
 # Logs
 *.log
-
 
 # Local / temporary files
 *.tmp
 *.temp
 *.bak
 
-# Project-specific caches
-.deepeval/
-
 # Python egg metadata inside src
 src/ichatbio_usgs_water_agent.egg-info/
 
-# Additional pycache folders not covered by the global rule
+# Additional pycache folders
 src/__pycache__/
 tests/__pycache__/
 water_agent/metadata/__pycache__/
 water_agent/metadata/references/__pycache__/
 
-# Additional .md files
+# Intermediate offline scraper dumps (runtime only loads discrete_families.json)
+metadata/raw/references/characteristics_*.csv
+metadata/raw/references/characteristics_*.json
+metadata/raw/references/characteristics_filtered.csv
+
+# Additional scratch docs
 PROJECT_NOTES.md
 decisions.md
