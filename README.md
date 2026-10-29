@@ -57,8 +57,6 @@ Retrieves the most recent daily statistical observations from automated sensor s
   * *"What is the latest gage height at USGS-02087500?"*
 * **Response:** Most recent daily reading with value, unit, timestamp, approval status, and station ID.
 
-### 2.6 Parameter Exploration & Disambiguation
-When a user asks about a parameter not in the pre-configured families (e.g. mercury, lead, pesticides), the agent searches the USGS registry (`characteristics_filtered.csv` and `parameter-codes.json`), presents candidate USGS codes with descriptors and units, and prompts the user to pick.
 
 ---
 
@@ -95,7 +93,7 @@ When a user asks about a parameter not in the pre-configured families (e.g. merc
    ```ini
    OPENAI_BASE_URL=https://api.openai.com/v1
    OPENAI_API_KEY=your-api-key-here
-   OPENAI_MODEL=gpt-4o
+   OPENAI_MODEL=gpt-5.6-luna
    ```
    *(Any OpenAI-compatible gateway works, including university or institutional LLM proxies.)*
 

@@ -1,0 +1,2020 @@
+{
+  "calcium": {
+    "family": "calcium",
+    "mixed_modality": false,
+    "parameters": {
+      "00910": {
+        "pcode": "00910",
+        "characteristicName": "Calcium",
+        "characteristicNameUserSupplied": "Calcium as calcium carbonate, water, unfiltered",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l CaCO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2,
+          "stationCount": 2
+        }
+      },
+      "00915": {
+        "pcode": "00915",
+        "characteristicName": "Calcium",
+        "characteristicNameUserSupplied": "Calcium, water, filtered",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 27409,
+          "stationCount": 3657
+        }
+      },
+      "00916": {
+        "pcode": "00916",
+        "characteristicName": "Calcium",
+        "characteristicNameUserSupplied": "Calcium, water, unfiltered, recoverable",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 411,
+          "stationCount": 102
+        }
+      },
+      "00918": {
+        "pcode": "00918",
+        "characteristicName": "Calcium",
+        "characteristicNameUserSupplied": "Calcium, water, unfiltered, recoverable",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "ca",
+      "ca2+",
+      "calcium ion",
+      "dissolved calcium",
+      "total calcium"
+    ],
+    "major_pcodes": [
+      "00915",
+      "00916",
+      "00910",
+      "00918"
+    ]
+  },
+  "chlorophyll_a": {
+    "family": "chlorophyll_a",
+    "mixed_modality": false,
+    "parameters": {
+      "70953": {
+        "pcode": "70953",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), phytoplankton in water, chromatographic-fluorometric method",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2301,
+          "stationCount": 64
+        }
+      },
+      "32230": {
+        "pcode": "32230",
+        "characteristicName": "Chlorophyll a, uncorrected for pheophytin",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), phytoplankton in water, spectrophotometric method, uncorrected",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32211": {
+        "pcode": "32211",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), phytoplankton in water, spectrophotometric method",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32217": {
+        "pcode": "32217",
+        "characteristicName": "Chlorophyll a, uncorrected for pheophytin",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), water, fluorometric method, uncorrected",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 14,
+          "stationCount": 2
+        }
+      },
+      "70951": {
+        "pcode": "70951",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), phytoplankton in water, chromatographic-spectrophotometric method",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32210": {
+        "pcode": "32210",
+        "characteristicName": "Chlorophyll a, uncorrected for pheophytin",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), water, trichromatic method, uncorrected",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32269": {
+        "pcode": "32269",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), plankton in water",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "mg/m3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32285": {
+        "pcode": "32285",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), water, in situ, excitation at 370, 470, 525, 570, 590, 610 nanometers, emission at 700 nanometers, targeted to green algae",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "32737": {
+        "pcode": "32737",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), phytoplankton in water, filtered (5 micron filter), chromatographic-fluorometric method",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "65231": {
+        "pcode": "65231",
+        "characteristicName": "Chlorophyll a",
+        "characteristicNameUserSupplied": "Chlorophyll a (Chl-a), water, in situ, in vivo fluorescence (IVF)",
+        "characteristicGroup": "Biological",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "chlorophyll",
+      "chl-a",
+      "chla",
+      "chlorophyll a",
+      "algal chlorophyll"
+    ],
+    "major_pcodes": [
+      "70953",
+      "32217",
+      "32230",
+      "32211",
+      "70951",
+      "32210",
+      "32269",
+      "32285",
+      "32737",
+      "65231"
+    ]
+  },
+  "dissolved_oxygen": {
+    "family": "dissolved_oxygen",
+    "mixed_modality": true,
+    "parameters": {
+      "00300": {
+        "pcode": "00300",
+        "characteristicName": "Dissolved oxygen (DO)",
+        "characteristicNameUserSupplied": "Dissolved oxygen (DO), water, unfiltered",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 28871,
+          "stationCount": 2189
+        }
+      },
+      "62971": {
+        "pcode": "62971",
+        "characteristicName": "Dissolved oxygen (DO)",
+        "characteristicNameUserSupplied": "Dissolved oxygen (DO), water, unfiltered, laboratory",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 284,
+          "stationCount": 92
+        }
+      },
+      "99985": {
+        "pcode": "99985",
+        "characteristicName": "Dissolved oxygen (DO)",
+        "characteristicNameUserSupplied": "Dissolved oxygen (DO), water, unfiltered, mid-depth of water column",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "do",
+      "oxygen",
+      "dissolved o2",
+      "o2"
+    ],
+    "major_pcodes": [
+      "00300",
+      "62971",
+      "99985"
+    ]
+  },
+  "electrical_conductivity": {
+    "family": "electrical_conductivity",
+    "mixed_modality": true,
+    "parameters": {
+      "00095": {
+        "pcode": "00095",
+        "characteristicName": "Specific conductance",
+        "characteristicNameUserSupplied": "Specific conductance, water, unfiltered, normalized to 25 degrees Celsius",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "uS/cm @25C",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 55685,
+          "stationCount": 4525
+        }
+      },
+      "90095": {
+        "pcode": "90095",
+        "characteristicName": "Specific conductance",
+        "characteristicNameUserSupplied": "Specific conductance, water, unfiltered, normalized to 25 degrees Celsius, laboratory",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "uS/cm @25C",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 12512,
+          "stationCount": 1487
+        }
+      },
+      "00094": {
+        "pcode": "00094",
+        "characteristicName": "Specific conductance",
+        "characteristicNameUserSupplied": "Specific conductance, water, unfiltered, normalized to 25 degrees Celsius",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "uS/cm @25C",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 16,
+          "stationCount": 13
+        }
+      },
+      "00402": {
+        "pcode": "00402",
+        "characteristicName": "Specific conductance",
+        "characteristicNameUserSupplied": "Specific conductance, water, unfiltered, non-temperature corrected",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "uS/cm",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99982": {
+        "pcode": "99982",
+        "characteristicName": "Specific conductance",
+        "characteristicNameUserSupplied": "Specific conductance, water, mid-depth of water column, normalized to 25 degrees Celsius",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "uS/cm @25C",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "conductivity",
+      "ec",
+      "spc",
+      "specific conductance",
+      "conductance"
+    ],
+    "major_pcodes": [
+      "00095",
+      "90095",
+      "00094",
+      "00402",
+      "99982"
+    ]
+  },
+  "nitrate": {
+    "family": "nitrate",
+    "mixed_modality": false,
+    "parameters": {
+      "00630": {
+        "pcode": "00630",
+        "characteristicName": "Inorganic nitrogen (nitrate and nitrite)",
+        "characteristicNameUserSupplied": "Nitrate plus nitrite as nitrogen, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 6093,
+          "stationCount": 355
+        }
+      },
+      "00618": {
+        "pcode": "00618",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrogen, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 17872,
+          "stationCount": 2709
+        }
+      },
+      "00631": {
+        "pcode": "00631",
+        "characteristicName": "Inorganic nitrogen (nitrate and nitrite)",
+        "characteristicNameUserSupplied": "Nitrate plus nitrite as nitrogen, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 18001,
+          "stationCount": 1717
+        }
+      },
+      "71851": {
+        "pcode": "71851",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrate, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l asNO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 16251,
+          "stationCount": 2509
+        }
+      },
+      "00620": {
+        "pcode": "00620",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrogen, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 9783,
+          "stationCount": 508
+        }
+      },
+      "71850": {
+        "pcode": "71850",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrate, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l asNO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 6001,
+          "stationCount": 226
+        }
+      },
+      "99133": {
+        "pcode": "99133",
+        "characteristicName": "Inorganic nitrogen (nitrate and nitrite)",
+        "characteristicNameUserSupplied": "Nitrate plus nitrite as nitrogen, water, in situ",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "91003": {
+        "pcode": "91003",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrate, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 111,
+          "stationCount": 6
+        }
+      },
+      "99121": {
+        "pcode": "99121",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrogen, water, filtered, field",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99124": {
+        "pcode": "99124",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrogen, water, unfiltered, field",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99137": {
+        "pcode": "99137",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrogen, water, in situ",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 28,
+          "stationCount": 20
+        }
+      },
+      "99889": {
+        "pcode": "99889",
+        "characteristicName": "Inorganic nitrogen (nitrate and nitrite)",
+        "characteristicNameUserSupplied": "Nitrate plus nitrite as nitrogen, water, filtered, field",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2,
+          "stationCount": 2
+        }
+      },
+      "51290": {
+        "pcode": "51290",
+        "characteristicName": "Nitrate",
+        "characteristicNameUserSupplied": "Nitrate as nitrate, water, in situ",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "no3",
+      "no3-n",
+      "nitrate-n",
+      "nitrate plus nitrite",
+      "total nitrate"
+    ],
+    "major_pcodes": [
+      "00631",
+      "00618",
+      "71851",
+      "00620",
+      "00630",
+      "71850",
+      "91003",
+      "99137",
+      "99889",
+      "99133",
+      "99121",
+      "99124",
+      "51290"
+    ]
+  },
+  "ph": {
+    "family": "ph",
+    "mixed_modality": true,
+    "parameters": {
+      "00400": {
+        "pcode": "00400",
+        "characteristicName": "pH",
+        "characteristicNameUserSupplied": "pH, water, unfiltered, field",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "std units",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 43972,
+          "stationCount": 4678
+        }
+      },
+      "00403": {
+        "pcode": "00403",
+        "characteristicName": "pH",
+        "characteristicNameUserSupplied": "pH, water, unfiltered, laboratory",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "std units",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 10767,
+          "stationCount": 1426
+        }
+      },
+      "52887": {
+        "pcode": "52887",
+        "characteristicName": "pH",
+        "characteristicNameUserSupplied": "pH, water, unfiltered, purged, air-equilibrated",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "std units",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "90400": {
+        "pcode": "90400",
+        "characteristicName": "pH",
+        "characteristicNameUserSupplied": "pH, area-weighted mean, water",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "std units",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99983": {
+        "pcode": "99983",
+        "characteristicName": "pH",
+        "characteristicNameUserSupplied": "pH, water, mid-depth of water column",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "std units",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "ph",
+      "field ph",
+      "lab ph"
+    ],
+    "major_pcodes": [
+      "00400",
+      "00403",
+      "52887",
+      "90400",
+      "99983"
+    ]
+  },
+  "phosphorus": {
+    "family": "phosphorus",
+    "mixed_modality": false,
+    "parameters": {
+      "00665": {
+        "pcode": "00665",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 20404,
+          "stationCount": 1039
+        }
+      },
+      "00660": {
+        "pcode": "00660",
+        "characteristicName": "Orthophosphate",
+        "characteristicNameUserSupplied": "Orthophosphate as orthophosphate, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l asPO4",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 19684,
+          "stationCount": 2441
+        }
+      },
+      "00671": {
+        "pcode": "00671",
+        "characteristicName": "Orthophosphate",
+        "characteristicNameUserSupplied": "Orthophosphate as phosphorus, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 17719,
+          "stationCount": 1745
+        }
+      },
+      "70507": {
+        "pcode": "70507",
+        "characteristicName": "Orthophosphate",
+        "characteristicNameUserSupplied": "Orthophosphate as phosphorus, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 4603,
+          "stationCount": 314
+        }
+      },
+      "00650": {
+        "pcode": "00650",
+        "characteristicName": "Phosphate-phosphorus",
+        "characteristicNameUserSupplied": "Phosphate as orthophosphate, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 6033,
+          "stationCount": 527
+        }
+      },
+      "71886": {
+        "pcode": "71886",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as orthophosphate, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l PO4",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2090,
+          "stationCount": 101
+        }
+      },
+      "00666": {
+        "pcode": "00666",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 9989,
+          "stationCount": 1023
+        }
+      },
+      "00662": {
+        "pcode": "00662",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, unfiltered, recoverable",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "ug/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99891": {
+        "pcode": "99891",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, unfiltered, modified Jirka method",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 10,
+          "stationCount": 10
+        }
+      },
+      "01072": {
+        "pcode": "01072",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "71888": {
+        "pcode": "71888",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as orthophosphate, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l PO4",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "52635": {
+        "pcode": "52635",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99122": {
+        "pcode": "99122",
+        "characteristicName": "Orthophosphate",
+        "characteristicNameUserSupplied": "Orthophosphate as orthophosphate, water, filtered, field",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00673": {
+        "pcode": "00673",
+        "characteristicName": "Organic phosphorus",
+        "characteristicNameUserSupplied": "Organic phosphorus as phosphorus, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "52527": {
+        "pcode": "52527",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, unfiltered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99893": {
+        "pcode": "99893",
+        "characteristicName": "Phosphorus",
+        "characteristicNameUserSupplied": "Phosphorus as phosphorus, water, filtered, modified Jirka method",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 4,
+          "stationCount": 4
+        }
+      },
+      "91004": {
+        "pcode": "91004",
+        "characteristicName": "Orthophosphate",
+        "characteristicNameUserSupplied": "Orthophosphate as phosphorus, water, filtered",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "ug/L as P",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 60,
+          "stationCount": 7
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "tp",
+      "srp",
+      "total phosphorus",
+      "orthophosphate",
+      "phosphate",
+      "po4",
+      "po4-p",
+      "soluble reactive phosphorus"
+    ],
+    "major_pcodes": [
+      "00665",
+      "00660",
+      "00671",
+      "00666",
+      "00650",
+      "70507",
+      "71886",
+      "91004",
+      "99891",
+      "99893",
+      "00662",
+      "01072",
+      "71888",
+      "52635",
+      "99122",
+      "00673",
+      "52527"
+    ]
+  },
+  "organic_carbon": {
+    "family": "organic_carbon",
+    "mixed_modality": false,
+    "parameters": {
+      "00680": {
+        "pcode": "00680",
+        "characteristicName": "Organic carbon",
+        "characteristicNameUserSupplied": "Total organic carbon (TOC), water, unfiltered",
+        "characteristicGroup": "Organics, Other",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 7750,
+          "stationCount": 318
+        }
+      },
+      "00681": {
+        "pcode": "00681",
+        "characteristicName": "Organic carbon",
+        "characteristicNameUserSupplied": "Dissolved organic carbon (DOC), water, filtered",
+        "characteristicGroup": "Organics, Other",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 5973,
+          "stationCount": 990
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "toc",
+      "doc",
+      "total organic carbon",
+      "dissolved organic carbon",
+      "carbon"
+    ],
+    "major_pcodes": [
+      "00680",
+      "00681"
+    ]
+  },
+  "turbidity_tss": {
+    "family": "turbidity_tss",
+    "mixed_modality": true,
+    "parameters": {
+      "00530": {
+        "pcode": "00530",
+        "characteristicName": "Total suspended solids",
+        "characteristicNameUserSupplied": "Suspended solids, water",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2120,
+          "stationCount": 175
+        }
+      },
+      "00076": {
+        "pcode": "00076",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (legacy)",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2295,
+          "stationCount": 143
+        }
+      },
+      "00070": {
+        "pcode": "00070",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (legacy), Jackson candle turbidimeter",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "JTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 355,
+          "stationCount": 46
+        }
+      },
+      "63680": {
+        "pcode": "63680",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), monochrome near-infrared (NIR) light-emitting diode (LED) light source (780 nanometers to 900 nanometers), detection angle 87.5 degrees to 92.5 degrees",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "FNU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 531,
+          "stationCount": 25
+        }
+      },
+      "63676": {
+        "pcode": "63676",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), monochrome near-infrared (NIR) light-emitting diode (LED) light source (780 nanometers to 900 nanometers), detection angle 87.5 degrees to 92.5 degrees",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTRU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 2996,
+          "stationCount": 289
+        }
+      },
+      "63675": {
+        "pcode": "63675",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), broad band (BB) light source (400 nanometers to 680 nanometers), detection angle 60 degrees to 120 degrees relative to incident light",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 1,
+          "stationCount": 1
+        }
+      },
+      "82079": {
+        "pcode": "82079",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (legacy), laboratory",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 6,
+          "stationCount": 6
+        }
+      },
+      "70299": {
+        "pcode": "70299",
+        "characteristicName": "Total suspended solids",
+        "characteristicNameUserSupplied": "Suspended solids, water, dried at 110 degrees Celsius",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 1,
+          "stationCount": 1
+        }
+      },
+      "61028": {
+        "pcode": "61028",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (legacy), field",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 54,
+          "stationCount": 52
+        }
+      },
+      "99872": {
+        "pcode": "99872",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), broad band (BB) light source (400 nanometers to 680 nanometers), detection angle 60 degrees to 120 degrees relative to incident light; Hach 2100AN, laboratory",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 18,
+          "stationCount": 2
+        }
+      },
+      "70293": {
+        "pcode": "70293",
+        "characteristicName": "Total suspended solids",
+        "characteristicNameUserSupplied": "Suspended solids, water, dried at 105 degrees Celsius",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "72188": {
+        "pcode": "72188",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (ratiometric), broad band (BB) light source (400 nanometers to 680 nanometers), detectors at multiple angles including 60 degrees to 120 degrees",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTRU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "72208": {
+        "pcode": "72208",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), broad band (BB) light source (400 nanometers to 680 nanometers), detection angle 60 degrees to 120 degrees relative to incident light",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "NTU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "72209": {
+        "pcode": "72209",
+        "characteristicName": "Turbidity",
+        "characteristicNameUserSupplied": "Turbidity (nephelometry), monochrome near-infrared (NIR) light-emitting diode (LED) light source (780 nanometers to 900 nanometers), detection angle 87.5 degrees to 92.5 degrees",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "FNU",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-12",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    },
+    "is_verified_core": true,
+    "aliases": [
+      "turbidity",
+      "tss",
+      "total suspended solids",
+      "suspended solids",
+      "suspended sediment"
+    ],
+    "major_pcodes": [
+      "63676",
+      "00076",
+      "00530",
+      "63680",
+      "00070",
+      "61028",
+      "99872",
+      "82079",
+      "63675",
+      "70299",
+      "70293",
+      "72188",
+      "72208",
+      "72209"
+    ]
+  },
+  "magnesium": {
+    "family": "magnesium",
+    "canonical_name": "Magnesium",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "mg",
+      "mg2+",
+      "magnesium ion"
+    ],
+    "major_pcodes": [
+      "00925",
+      "00921",
+      "00920",
+      "00927"
+    ],
+    "parameters": {
+      "00925": {
+        "pcode": "00925",
+        "characteristicName": "Magnesium",
+        "characteristicNameUserSupplied": "Magnesium, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00921": {
+        "pcode": "00921",
+        "characteristicName": "Magnesium",
+        "characteristicNameUserSupplied": "Magnesium, water, unfiltered, recoverable, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00920": {
+        "pcode": "00920",
+        "characteristicName": "Magnesium",
+        "characteristicNameUserSupplied": "Magnesium, water, unfiltered, milligrams per liter as calcium carbonate",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l CaCO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00927": {
+        "pcode": "00927",
+        "characteristicName": "Magnesium",
+        "characteristicNameUserSupplied": "Magnesium, water, unfiltered, recoverable, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "sodium": {
+    "family": "sodium",
+    "canonical_name": "Sodium",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "na",
+      "na+",
+      "sodium ion"
+    ],
+    "major_pcodes": [
+      "00930",
+      "00929"
+    ],
+    "parameters": {
+      "00930": {
+        "pcode": "00930",
+        "characteristicName": "Sodium",
+        "characteristicNameUserSupplied": "Sodium, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00929": {
+        "pcode": "00929",
+        "characteristicName": "Sodium",
+        "characteristicNameUserSupplied": "Sodium, water, unfiltered, recoverable, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "potassium": {
+    "family": "potassium",
+    "canonical_name": "Potassium",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "k",
+      "k+",
+      "potassium ion"
+    ],
+    "major_pcodes": [
+      "00935",
+      "00937"
+    ],
+    "parameters": {
+      "00935": {
+        "pcode": "00935",
+        "characteristicName": "Potassium",
+        "characteristicNameUserSupplied": "Potassium, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00937": {
+        "pcode": "00937",
+        "characteristicName": "Potassium",
+        "characteristicNameUserSupplied": "Potassium, water, unfiltered, recoverable, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "chloride": {
+    "family": "chloride",
+    "canonical_name": "Chloride",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "cl",
+      "cl-",
+      "chloride ion"
+    ],
+    "major_pcodes": [
+      "00940",
+      "99220"
+    ],
+    "parameters": {
+      "00940": {
+        "pcode": "00940",
+        "characteristicName": "Chloride",
+        "characteristicNameUserSupplied": "Chloride, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "99220": {
+        "pcode": "99220",
+        "characteristicName": "Chloride",
+        "characteristicNameUserSupplied": "Chloride, water, unfiltered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "sulfate": {
+    "family": "sulfate",
+    "canonical_name": "Sulfate",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "so4",
+      "so4-2",
+      "sulfate ion",
+      "sulphate"
+    ],
+    "major_pcodes": [
+      "00945",
+      "00946"
+    ],
+    "parameters": {
+      "00945": {
+        "pcode": "00945",
+        "characteristicName": "Sulfate",
+        "characteristicNameUserSupplied": "Sulfate, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00946": {
+        "pcode": "00946",
+        "characteristicName": "Sulfate",
+        "characteristicNameUserSupplied": "Sulfate, water, unfiltered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "fluoride": {
+    "family": "fluoride",
+    "canonical_name": "Fluoride",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "f",
+      "f-",
+      "fluoride ion"
+    ],
+    "major_pcodes": [
+      "00950",
+      "00951"
+    ],
+    "parameters": {
+      "00950": {
+        "pcode": "00950",
+        "characteristicName": "Fluoride",
+        "characteristicNameUserSupplied": "Fluoride, water, filtered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Minor, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00951": {
+        "pcode": "00951",
+        "characteristicName": "Fluoride",
+        "characteristicNameUserSupplied": "Fluoride, water, unfiltered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Minor, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "silica": {
+    "family": "silica",
+    "canonical_name": "Silica",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "sio2",
+      "silicon dioxide",
+      "silicon"
+    ],
+    "major_pcodes": [
+      "00955",
+      "00956"
+    ],
+    "parameters": {
+      "00955": {
+        "pcode": "00955",
+        "characteristicName": "Silica",
+        "characteristicNameUserSupplied": "Silica, water, filtered, milligrams per liter as SiO2",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00956": {
+        "pcode": "00956",
+        "characteristicName": "Silica",
+        "characteristicNameUserSupplied": "Silica, water, unfiltered, milligrams per liter as SiO2",
+        "characteristicGroup": "Inorganics, Major, Non-metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "alkalinity": {
+    "family": "alkalinity",
+    "canonical_name": "Alkalinity",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "alk",
+      "total alkalinity",
+      "acid neutralizing capacity",
+      "anc"
+    ],
+    "major_pcodes": [
+      "00410",
+      "00418",
+      "00417"
+    ],
+    "parameters": {
+      "00410": {
+        "pcode": "00410",
+        "characteristicName": "Alkalinity",
+        "characteristicNameUserSupplied": "Acid neutralizing capacity, water, unfiltered, fixed endpoint (pH 4.5) titration, field, milligrams per liter as calcium carbonate",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l CaCO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00418": {
+        "pcode": "00418",
+        "characteristicName": "Alkalinity",
+        "characteristicNameUserSupplied": "Alkalinity, water, filtered, fixed endpoint (pH 4.5) titration, field, milligrams per liter as calcium carbonate",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l CaCO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00417": {
+        "pcode": "00417",
+        "characteristicName": "Alkalinity",
+        "characteristicNameUserSupplied": "Acid neutralizing capacity, water, unfiltered, fixed endpoint (pH 4.5) titration, laboratory, milligrams per liter as calcium carbonate",
+        "characteristicGroup": "Physical",
+        "medium": "water",
+        "unit_of_measure": "mg/l CaCO3",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "iron": {
+    "family": "iron",
+    "canonical_name": "Iron",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "fe",
+      "fe2+",
+      "fe3+",
+      "iron ion"
+    ],
+    "major_pcodes": [
+      "01046",
+      "01045",
+      "74010"
+    ],
+    "parameters": {
+      "01046": {
+        "pcode": "01046",
+        "characteristicName": "Iron",
+        "characteristicNameUserSupplied": "Iron, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01045": {
+        "pcode": "01045",
+        "characteristicName": "Iron",
+        "characteristicNameUserSupplied": "Iron, water, unfiltered, recoverable, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "74010": {
+        "pcode": "74010",
+        "characteristicName": "Iron",
+        "characteristicNameUserSupplied": "Iron, water, unfiltered, milligrams per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "manganese": {
+    "family": "manganese",
+    "canonical_name": "Manganese",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "mn",
+      "mn2+",
+      "manganese ion"
+    ],
+    "major_pcodes": [
+      "01056",
+      "01055"
+    ],
+    "parameters": {
+      "01056": {
+        "pcode": "01056",
+        "characteristicName": "Manganese",
+        "characteristicNameUserSupplied": "Manganese, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01055": {
+        "pcode": "01055",
+        "characteristicName": "Manganese",
+        "characteristicNameUserSupplied": "Manganese, water, unfiltered, recoverable, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "lead": {
+    "family": "lead",
+    "canonical_name": "Lead",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "pb",
+      "lead ion"
+    ],
+    "major_pcodes": [
+      "01049",
+      "01051"
+    ],
+    "parameters": {
+      "01049": {
+        "pcode": "01049",
+        "characteristicName": "Lead",
+        "characteristicNameUserSupplied": "Lead, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01051": {
+        "pcode": "01051",
+        "characteristicName": "Lead",
+        "characteristicNameUserSupplied": "Lead, water, unfiltered, recoverable, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "arsenic": {
+    "family": "arsenic",
+    "canonical_name": "Arsenic",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "as",
+      "arsenic ion"
+    ],
+    "major_pcodes": [
+      "01000",
+      "01002"
+    ],
+    "parameters": {
+      "01000": {
+        "pcode": "01000",
+        "characteristicName": "Arsenic",
+        "characteristicNameUserSupplied": "Arsenic, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01002": {
+        "pcode": "01002",
+        "characteristicName": "Arsenic",
+        "characteristicNameUserSupplied": "Arsenic, water, unfiltered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "copper": {
+    "family": "copper",
+    "canonical_name": "Copper",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "cu",
+      "copper ion"
+    ],
+    "major_pcodes": [
+      "01040",
+      "01042"
+    ],
+    "parameters": {
+      "01040": {
+        "pcode": "01040",
+        "characteristicName": "Copper",
+        "characteristicNameUserSupplied": "Copper, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01042": {
+        "pcode": "01042",
+        "characteristicName": "Copper",
+        "characteristicNameUserSupplied": "Copper, water, unfiltered, recoverable, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "zinc": {
+    "family": "zinc",
+    "canonical_name": "Zinc",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "zn",
+      "zinc ion"
+    ],
+    "major_pcodes": [
+      "01090",
+      "01092"
+    ],
+    "parameters": {
+      "01090": {
+        "pcode": "01090",
+        "characteristicName": "Zinc",
+        "characteristicNameUserSupplied": "Zinc, water, filtered, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "01092": {
+        "pcode": "01092",
+        "characteristicName": "Zinc",
+        "characteristicNameUserSupplied": "Zinc, water, unfiltered, recoverable, micrograms per liter",
+        "characteristicGroup": "Inorganics, Minor, Metals",
+        "medium": "water",
+        "unit_of_measure": "ug/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "ammonia": {
+    "family": "ammonia",
+    "canonical_name": "Ammonia",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "nh3",
+      "nh4",
+      "nh4-n",
+      "ammonia nitrogen"
+    ],
+    "major_pcodes": [
+      "00608",
+      "00610"
+    ],
+    "parameters": {
+      "00608": {
+        "pcode": "00608",
+        "characteristicName": "Ammonia",
+        "characteristicNameUserSupplied": "Ammonia (NH3 + NH4+), water, filtered, milligrams per liter as nitrogen",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00610": {
+        "pcode": "00610",
+        "characteristicName": "Ammonia",
+        "characteristicNameUserSupplied": "Ammonia (NH3 + NH4+), water, unfiltered, milligrams per liter as nitrogen",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l as N",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  },
+  "total_nitrogen": {
+    "family": "total_nitrogen",
+    "canonical_name": "Total Nitrogen",
+    "mixed_modality": false,
+    "is_verified_core": false,
+    "aliases": [
+      "tn",
+      "total nitrogen"
+    ],
+    "major_pcodes": [
+      "00600",
+      "00602"
+    ],
+    "parameters": {
+      "00600": {
+        "pcode": "00600",
+        "characteristicName": "Total Nitrogen",
+        "characteristicNameUserSupplied": "Total nitrogen [nitrate + nitrite + ammonia + organic-N], water, unfiltered, milligrams per liter",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      },
+      "00602": {
+        "pcode": "00602",
+        "characteristicName": "Total Nitrogen",
+        "characteristicNameUserSupplied": "Total nitrogen [nitrate + nitrite + ammonia + organic-N], water, filtered, milligrams per liter",
+        "characteristicGroup": "Nutrient",
+        "medium": "water",
+        "unit_of_measure": "mg/l",
+        "verified_counts": {
+          "stateFips": "US:37",
+          "date": "2026-10-22",
+          "recordCount": 0,
+          "stationCount": 0
+        }
+      }
+    }
+  }
+}

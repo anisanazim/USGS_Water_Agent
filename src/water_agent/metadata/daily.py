@@ -141,14 +141,7 @@ DAILY_FIELD_CONFIG = {
 
     "monitoring_location_id": QueryableConfig(
         semantic_type="entity_reference",
-        reference=ReferenceConfig(
-            collection="monitoring-locations",
-            value_field="id",
-            search_fields=[
-                "monitoring_location_name",
-                "monitoring_location_number",
-            ],
-        ),
+        reference=None,
     ),
 }
  

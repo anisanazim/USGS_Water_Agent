@@ -8,7 +8,7 @@ from ichatbio.test_utils import InMemoryResponseChannel
 
 from agent import USGSWaterAgent
 
-ENTRYPOINT = "answer_daily_query"
+ENTRYPOINT = "query_water_data"
 
 
 async def ask(question: str) -> None:

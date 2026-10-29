@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
+import uuid
 from typing import Any, Optional
 
 from ichatbio.agent import IChatBioAgent
@@ -14,49 +14,116 @@ from usgs_water_data import (
     USGSNotFoundError,
     USGSServiceError,
     USGSValidationError,
-    USGSWaterDataFetcher,
+    USGSWaterDataFetcher as _RealUSGSWaterDataFetcher,
 )
+from water_agent.fetchers.samples_fetcher import (
+    SamplesError,
+    SamplesRateLimitError,
+    SamplesValidationError,
+    USGSSamplesFetcher as _RealUSGSSamplesFetcher,
+)
+
+USGSWaterDataFetcher = _RealUSGSWaterDataFetcher
+USGSSamplesFetcher = _RealUSGSSamplesFetcher
+from water_agent.handlers import (
+    format_date_for_display,
+    handle_clarification,
+    handle_inventory,
+    handle_parameter_count,
+    handle_observation,
+    handle_spatial,
+)
+from water_agent.metadata.models import QueryIntent
 from water_agent.query_planner import QueryPlanner
+from water_agent.results import RequestContext
 
 logger = logging.getLogger(__name__)
 
-ANSWER_DAILY_QUERY_DESCRIPTION = """\
-Answers a natural-language question about USGS Daily water data by \
-resolving it to the exact Daily API filters (e.g. parameter_code, \
-statistic_id, state_code) using USGS's own field and reference metadata - \
-no hardcoded keyword mappings - then querying the Daily API and returning \
-the most recent matching observation(s). Asks a clarifying question \
-instead if the request is ambiguous. \
-Example: "Show me the maximum streamflow in North Carolina" resolves to \
-parameter_code=00060, statistic_id=00001, state_code=37 and returns the \
-most recent matching daily reading.
+QUERY_WATER_DATA_DESCRIPTION = """\
+Answers natural-language questions about USGS water monitoring data across both \
+continuous automated sensor feeds (streamflow, gage height, temperature) and \
+discrete laboratory water quality samples (calcium, nutrients, metals, pH, etc.). \
+Supports spatial station discovery, dual-modality station inventories, parameter observation \
+counts, and discrete observation values using USGS metadata and an LLM planning loop. \
+Examples: "Where is calcium monitored in North Carolina?", "What information is available at \
+USGS-0423205010?", "How many phosphorus records are at USGS-0423205010?", or "What is the \
+maximum streamflow in North Carolina?".
 """
-
-DAILY_VALUES_LIMIT = 5
+ANSWER_DAILY_QUERY_DESCRIPTION = QUERY_WATER_DATA_DESCRIPTION
 
 
 class USGSWaterAgent(IChatBioAgent):
-    def __init__(self):
+    def __init__(
+        self,
+        query_planner: Optional[QueryPlanner] = None,
+        samples_fetcher: Optional[USGSSamplesFetcher] = None,
+        water_data_fetcher: Optional[USGSWaterDataFetcher] = None,
+    ):
         super().__init__()
-        self._query_planner: Optional[QueryPlanner] = None
+        self._query_planner = query_planner
+        self._samples_fetcher = samples_fetcher
+        self._water_data_fetcher = water_data_fetcher
+        self._owns_fetchers = (samples_fetcher is None and water_data_fetcher is None)
+
+    @property
+    def samples_fetcher(self) -> _RealUSGSSamplesFetcher:
+        import sys
+        agent_mod = sys.modules.get("agent")
+        cls = getattr(agent_mod, "USGSSamplesFetcher", _RealUSGSSamplesFetcher) if agent_mod else _RealUSGSSamplesFetcher
+        if cls is not _RealUSGSSamplesFetcher:
+            return cls()
+        if self._samples_fetcher is None:
+            self._samples_fetcher = _RealUSGSSamplesFetcher()
+        return self._samples_fetcher
+
+    @property
+    def water_data_fetcher(self) -> _RealUSGSWaterDataFetcher:
+        import sys
+        agent_mod = sys.modules.get("agent")
+        cls = getattr(agent_mod, "USGSWaterDataFetcher", _RealUSGSWaterDataFetcher) if agent_mod else _RealUSGSWaterDataFetcher
+        if cls is not _RealUSGSWaterDataFetcher:
+            return cls()
+        if self._water_data_fetcher is None:
+            self._water_data_fetcher = _RealUSGSWaterDataFetcher()
+        return self._water_data_fetcher
 
     @property
     def query_planner(self) -> QueryPlanner:
         # Built lazily so instantiating the agent (e.g. in tests) doesn't
         # require an LLM API key to be configured.
         if self._query_planner is None:
-            self._query_planner = QueryPlanner()
+            self._query_planner = QueryPlanner(
+                water_data_fetcher=self.water_data_fetcher,
+                samples_fetcher=self.samples_fetcher,
+            )
         return self._query_planner
+
+    async def aclose(self) -> None:
+        """Close shared underlying HTTP clients if owned."""
+        if self._owns_fetchers:
+            await self.samples_fetcher.aclose()
+            await self.water_data_fetcher.aclose()
+        if self._query_planner is not None:
+            await self._query_planner.aclose()
+
+    async def check_health(self) -> Any:
+        """Perform diagnostic health and readiness probe on all upstream dependencies."""
+        from water_agent.health import HealthChecker
+        checker = HealthChecker(
+            samples_fetcher=self.samples_fetcher,
+            water_data_fetcher=self.water_data_fetcher,
+        )
+        return await checker.run_checks()
 
     def get_agent_card(self) -> AgentCard:
         return AgentCard(
             name="USGS Water Data Agent",
-            description="Answer natural-language questions about USGS Daily water monitoring data by resolving them to exact USGS query filters and fetching real observations.",
+            description="Answer natural-language questions about USGS continuous sensor and discrete laboratory water monitoring data by resolving them to exact USGS query filters and fetching real observations.",
             icon="https://waterdata.usgs.gov/favicon.ico",
             entrypoints=[
                 AgentEntrypoint(
-                    id="answer_daily_query",
-                    description=ANSWER_DAILY_QUERY_DESCRIPTION,
+                    id="query_water_data",
+                    description=QUERY_WATER_DATA_DESCRIPTION,
                     parameters=None,
                 ),
             ],
@@ -80,7 +147,7 @@ class USGSWaterAgent(IChatBioAgent):
         try:
             await handler(context, request, params)
 
-        except USGSValidationError as exc:
+        except (USGSValidationError, SamplesValidationError) as exc:
             logger.info("Validation error for request %r: %s", request, exc)
             await context.reply(f"I couldn't process that request: {exc}")
 
@@ -88,10 +155,16 @@ class USGSWaterAgent(IChatBioAgent):
             logger.info("No data found for request %r: %s", request, exc)
             await context.reply(f"I couldn't find any USGS data for that request: {exc}")
 
-        except USGSServiceError as exc:
+        except SamplesRateLimitError as exc:
+            logger.warning("USGS Samples API rate limit reached for request %r: %s", request, exc)
+            await context.reply(
+                "The USGS API rate limit was temporarily reached. Please try your request again in a few moments."
+            )
+
+        except (USGSServiceError, SamplesError) as exc:
             logger.error("USGS service error for request %r: %s", request, exc)
             await context.reply(
-                "The USGS water data service is currently unavailable or timed out. Please try again shortly."
+                f"The USGS service encountered an error processing that request: {exc}"
             )
 
         except Exception:
@@ -103,182 +176,68 @@ class USGSWaterAgent(IChatBioAgent):
     @property
     def _entrypoint_handlers(self):
         return {
-            "answer_daily_query": self._handle_answer_daily_query,
+            "query_water_data": self._handle_query_water_data,
+            "answer_daily_query": self._handle_query_water_data,  # Backward-compatible alias
         }
 
-    async def _handle_answer_daily_query(
+    async def _handle_query_water_data(
         self, context: ResponseContext, request: str, params: Optional[BaseModel]
     ) -> None:
-        async with context.begin_process("Answering USGS Daily data question") as process:
+        async with context.begin_process("Processing USGS water data query") as process:
             await process.log(f"Request received: {request!r}")
 
-            plan = await self.query_planner.plan(request)
+            ctx = RequestContext(request_id=str(uuid.uuid4()))
+            ctx.ichatbio_process = process
+            plan = await self.query_planner.plan(request, ctx)
 
             if plan.semantic:
                 await process.log(
                     f"Semantic interpretation: {plan.semantic}", data=plan.semantic
                 )
 
-            if plan.clarification_needed:
-                if plan.ambiguous_candidates:
-                    await process.log(
-                        f"Ambiguous candidates considered: {', '.join(plan.ambiguous_candidates)}",
-                        data={"candidates": plan.ambiguous_candidates},
-                    )
-                await process.log(f"Clarification needed: {plan.clarification_needed}")
-                await context.reply(plan.clarification_needed, data=plan.model_dump())
+            # Intent-Driven Router across the 5 core workflows + clarification
+            # 1. Clarification & Disambiguation (Workflow 6)
+            if plan.intent == QueryIntent.CLARIFICATION or plan.clarification_needed:
+                await handle_clarification(context, process, plan, ctx, request)
                 return
 
-            if plan.filters:
-                await process.log(
-                    f"Resolved parameters: {plan.filters}", data=plan.filters
-                )
-
-            # Handle Station Inventory Queries
-            if plan.inventory_results is not None and (plan.inventory_results or plan.spatial_results is None):
-                # We expect inventory_results to be a dict with "parameters" and "request_url"
-                params_dict = plan.inventory_results.get("parameters", {})
-                req_url = plan.inventory_results.get("request_url", "")
-                
-                if req_url:
-                    await process.log(f'Final request URL: "{req_url}"', data={"url": req_url})
-                
-                # Check if the user asked about a SPECIFIC parameter (Workflow 3)
-                requested_param_code = plan.filters.get("parameter_code")
-                
-                if requested_param_code:
-                    if requested_param_code in params_dict:
-                        param_data = params_dict[requested_param_code]
-                        count = param_data.get("estimated_daily_records")
-                        await process.log(f"Found parameter {param_data['name']} with estimated count {count}.")
-                        
-                        if count is not None:
-                            response_text = f"There are an estimated **{count:,} daily records** for {param_data['name']} at this station, collected from {param_data['begin']} to {param_data['end']}."
-                        else:
-                            response_text = f"Data for {param_data['name']} is available at this station from {param_data['begin']} to {param_data['end']}, but I could not estimate the exact number of records."
-                    else:
-                        await process.log(f"Parameter code {requested_param_code} not found at station.")
-                        response_text = "I couldn't find any data for that specific parameter at this station."
-                else:
-                    # General station inventory (Workflow 2)
-                    await process.log(f"Found {len(params_dict)} parameters available at the station.")
-                    if not params_dict:
-                        response_text = "I couldn't find any data parameters associated with that station."
-                    else:
-                        response_text = f"Available data parameters for this station:\n\n"
-                        for param_code, param_data in params_dict.items():
-                            count_str = f" (~{param_data['estimated_daily_records']:,} records)" if param_data.get("estimated_daily_records") is not None else ""
-                            response_text += f"- **{param_data['name']}** ({param_data['begin']} to {param_data['end']}){count_str}\n"
-                
-                await process.create_artifact(
-                    mimetype="application/json",
-                    description="USGS Station Inventory",
-                    content=json.dumps(plan.inventory_results, indent=2).encode("utf-8"),
-                    metadata={"count": len(params_dict)},
-                )
-                
-                await context.reply(response_text, data=plan.model_dump())
+            # 2. Spatial Station Discovery (Workflow 1)
+            if plan.intent == QueryIntent.SPATIAL_DISCOVERY or plan.stations_ref:
+                await handle_spatial(context, process, plan, ctx)
                 return
 
-            # Handle Spatial Queries
-            if plan.spatial_results is not None and (plan.spatial_results or plan.inventory_results is None):
-                stations = plan.spatial_results.get("stations", [])
-                req_url = plan.spatial_results.get("request_url", "")
-                meta_url = plan.spatial_results.get("metadata_url", "")
-                
-                urls = [req_url]
-                if meta_url:
-                    urls.append(meta_url)
-                
-                for u in urls:
-                    if u:
-                        await process.log(f'Final request URL: "{u}"', data={"url": u})
-                
-                await process.log(f"Found {len(stations)} matching monitoring locations.")
-                if not stations:
-                    response_text = "I couldn't find any monitoring locations matching those criteria."
-                else:
-                    response_text = f"Found **{len(stations)}** monitoring locations:\n\n"
-                    for station_id in stations[:50]: # Limit to 50 for readability
-                        response_text += f"- `{station_id}`\n"
-                    if len(stations) > 50:
-                        response_text += f"\n*(...and {len(stations) - 50} more)*"
-                
-                await process.create_artifact(
-                    mimetype="application/json",
-                    description="USGS Spatial Query Results",
-                    content=json.dumps(plan.spatial_results, indent=2).encode("utf-8"),
-                    metadata={"count": len(stations)},
-                )
-                
-                await context.reply(response_text, data=plan.model_dump())
-                return
-
-            if not plan.filters:
-                await process.log("No Daily API filters could be resolved.")
-                await context.reply(
-                    "I couldn't resolve any Daily API filters for that question.",
-                    data=plan.model_dump(),
+            # 3. Station Parameter Counts (Workflow 3)
+            if plan.intent == QueryIntent.STATION_PARAMETER_COUNT:
+                await handle_parameter_count(
+                    context, process, plan, ctx, request, samples_fetcher=self.samples_fetcher
                 )
                 return
 
-            async with USGSWaterDataFetcher() as fetcher:
-                result = await fetcher.fetch_daily_values(
-                    plan.filters, limit=DAILY_VALUES_LIMIT
-                )
+            # 4. Station Inventory (Workflow 2)
+            if (
+                plan.intent == QueryIntent.STATION_INVENTORY
+                or getattr(plan, "inventory_ref", None)
+            ):
+                await handle_inventory(context, process, plan, ctx, request)
+                return
 
-            await process.log(
-                f'Final request URL: "{result["request_url"]}"',
-                data={"url": result["request_url"]},
-            )
-
-            if not result["features"]:
-                await process.log("No matching Daily observations found.")
-                await context.reply(
-                    "I resolved the filters for your question, but found no "
-                    "matching USGS Daily observations.",
-                    data=plan.model_dump(),
+            # 4. Observation Values (Workflows 4 & 5: Discrete & Continuous)
+            if plan.intent == QueryIntent.OBSERVATION or plan.filters:
+                await handle_observation(
+                    context,
+                    process,
+                    plan,
+                    ctx,
+                    samples_fetcher=self.samples_fetcher,
+                    water_data_fetcher=self.water_data_fetcher,
                 )
                 return
 
-            readings = [
-                self._normalize_daily_feature(feature)
-                for feature in result["features"]
-            ]
-            await process.log(
-                f"Found {len(readings)} matching observation(s); "
-                f"most recent is from {readings[0]['time']}."
-            )
+            # Fallback guardrail
+            await handle_clarification(context, process, plan, ctx, request)
 
-            await process.create_artifact(
-                mimetype="application/json",
-                description="USGS Daily observations",
-                content=json.dumps(
-                    {"filters": plan.filters, "readings": readings}, indent=2
-                ).encode("utf-8"),
-                metadata={"filters": plan.filters, "count": len(readings)},
-            )
-
-        latest = readings[0]
-        await context.reply(
-            f"Most recent matching USGS Daily observation: {latest['value']} "
-            f"{latest['unit']} on {latest['time']} at "
-            f"{latest['monitoring_location_id']}.",
-            data={"filters": plan.filters},
-        )
-
-    @staticmethod
-    def _normalize_daily_feature(feature: dict[str, Any]) -> dict[str, Any]:
-        properties = feature.get("properties", {})
-        return {
-            "monitoring_location_id": properties.get("monitoring_location_id"),
-            "parameter_code": properties.get("parameter_code"),
-            "statistic_id": properties.get("statistic_id"),
-            "value": properties.get("value"),
-            "unit": properties.get("unit_of_measure"),
-            "time": properties.get("time"),
-            "approval_status": properties.get("approval_status"),
-        }
+    # Backward-compatible handler alias
+    _handle_answer_daily_query = _handle_query_water_data
 
 
 def create_app():

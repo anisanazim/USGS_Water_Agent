@@ -12,7 +12,15 @@ dependencies = [
     "httpx>=0.28.0",
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.0.0",
+    "allure-pytest>=2.16.0",
+    "deepeval>=4.3.0",
+    "langsmith>=0.1.0",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "smoke: Live upstream USGS API smoke tests (nightly only, excluded from PR builds)",
+]
