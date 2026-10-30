@@ -24,8 +24,8 @@ flowchart LR
     D -.->|"Question unclear?"| C["Asks you a follow-up<br/><i>'Which state is Orange County in?'</i>"]
     C -.-> Q
 
-    F --- S1[("Live sensors<br/>Daily streamflow, water level,<br/>temperature")]
-    F --- S2[("Lab samples<br/>Water chemistry like<br/>phosphorus, nitrate, calcium")]
+    F -->|"Queries"| S1[("Live sensors<br/>Daily streamflow, water level,<br/>temperature")]
+    F -->|"Queries"| S2[("Lab samples<br/>Water chemistry like<br/>phosphorus, nitrate, calcium")]
 ```
 
 **Two kinds of water data.** USGS collects water data in two ways, and the agent handles both:
@@ -42,14 +42,12 @@ flowchart LR
 | :--- | :--- | :--- |
 | **Find stations** | "Where is streamflow monitored in Wake County, NC?" | List of monitoring stations in that area |
 | **What a station measures** | "What does station USGS-0423205010 measure?" | Its sensor readings and lab tests |
-| **How much data exists** | "How many phosphorus records are at USGS-0423205010?" | A record count |
+| **How much data exists** | "How many phosphorus records are at USGS-0423205010?" | Total count and parameter breakdown |
 | **Lab results** | "Show nitrate results at USGS-0423205010 for 2020" | Lab measurements with dates and units |
 | **Daily sensor values** | "What was the daily streamflow at USGS-02087500 last month?" | Daily averages or maximums |
 | **Not enough detail** | "Show me streamflow stations" | A follow-up question asking where |
 
 ### 1.3 Detailed Component Architecture *(for engineers)*
-
-## 1. High-Level System Architecture
 
 The USGS Water Agent is built with a decoupled, dual-modality architecture that coordinates automated sensor time-series with laboratory water quality sample observations. It exposes a single public entrypoint (`USGSWaterAgent`) to the overarching `IChatBio` system while isolating planning, business logic, resilience, and data access behind typed boundaries.
 
@@ -154,7 +152,7 @@ flowchart TD
     Response -->|"Rendered Markdown & Downloadable Artifacts"| Client
 ```
 
-### Architectural Nuances & Design Decisions
+### 1.4 Architectural Nuances & Design Decisions
 
 1. **Request Lifecycle, Context Protection & State Trade-offs**:
    * `RequestContext` and its internal `ResultStore` are strictly **request-scoped in-memory structures** instantiated with a unique UUID on each user turn (`RequestContext(request_id=str(uuid.uuid4()))`).
