@@ -1,11 +1,53 @@
 # USGS Water Agent: Architecture & Data Flow Specification
 
-> **Document Version**: 2.5  
-> **Last Updated**: 2026-10-29  
+> **Document Version**: 2.6  
+> **Last Updated**: 2026-10-30  
 > **Status**: Current Production Reference  
 > **Repository**: `usgs-water-agent`
 
 ---
+## 1. System Overview
+
+### 1.1 At a Glance
+
+The USGS Water Agent answers plain-English questions about U.S. water data. It understands what you're asking, fetches the right data from the U.S. Geological Survey, and replies with a short summary plus a downloadable file of the full results.
+
+```mermaid
+flowchart LR
+    Q["You ask a question<br/><i>'Where is streamflow measured<br/>in Wake County, NC?'</i>"]
+    U["1. Understand<br/>Works out the place,<br/>the measurement, and the time"]
+    D["2. Decide<br/>Picks the right kind of lookup"]
+    F["3. Fetch<br/>Gets the data from USGS"]
+    A["4. Answer<br/>Short table in the chat<br/>+ full data to download"]
+
+    Q --> U --> D --> F --> A
+    D -.->|"Question unclear?"| C["Asks you a follow-up<br/><i>'Which state is Orange County in?'</i>"]
+    C -.-> Q
+
+    F --- S1[("Live sensors<br/>Daily streamflow, water level,<br/>temperature")]
+    F --- S2[("Lab samples<br/>Water chemistry like<br/>phosphorus, nitrate, calcium")]
+```
+
+**Two kinds of water data.** USGS collects water data in two ways, and the agent handles both:
+
+| | Live sensors (continuous) | Lab samples (discrete) |
+| :--- | :--- | :--- |
+| **What it is** | Instruments in rivers that record automatically | Water collected by hand and analyzed in a lab |
+| **How often** | Every day | Occasionally (weeks to years apart) |
+| **Typical measurements** | Streamflow, water level, temperature | Nutrients, metals, minerals |
+
+### 1.2 What You Can Ask
+
+| Type of question | Example | What you get back |
+| :--- | :--- | :--- |
+| **Find stations** | "Where is streamflow monitored in Wake County, NC?" | List of monitoring stations in that area |
+| **What a station measures** | "What does station USGS-0423205010 measure?" | Its sensor readings and lab tests |
+| **How much data exists** | "How many phosphorus records are at USGS-0423205010?" | A record count |
+| **Lab results** | "Show nitrate results at USGS-0423205010 for 2020" | Lab measurements with dates and units |
+| **Daily sensor values** | "What was the daily streamflow at USGS-02087500 last month?" | Daily averages or maximums |
+| **Not enough detail** | "Show me streamflow stations" | A follow-up question asking where |
+
+### 1.3 Detailed Component Architecture *(for engineers)*
 
 ## 1. High-Level System Architecture
 
