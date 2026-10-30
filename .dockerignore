@@ -1,12 +1,39 @@
+# Virtual environments & Git
 .venv/
+venv/
 .git/
-.pytest_cache/
+.gitignore
+
+# Python bytecode & caches
 **/__pycache__/
-**/*.pyc
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local secrets & environment files
 .env
 .env.*
 !.env.example
+
+# Test suite, evaluations, and reporting artifacts
 tests/
+allure-report/
+allure-results/
+.deepeval/
+run_allure_suite.py
+
+# Offline data generation & scrapers
+scripts/
+fetch_daily_queryables.py
+fetch_reference_data.py
 ask.py
-decisions.md
-PROJECT_NOTES.md
+
+# Documentation & notes
+docs/
+*.md
+
+# Scratch & local experiments
+scratch/
