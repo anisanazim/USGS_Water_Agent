@@ -75,3 +75,6 @@ metadata/raw/references/characteristics_filtered.csv
 # Additional scratch docs
 PROJECT_NOTES.md
 decisions.md
+
+# Local-only documentation
+docs/
