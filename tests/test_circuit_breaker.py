@@ -140,7 +140,7 @@ async def test_samples_fetcher_circuit_breaker():
     mock_503 = httpx.Response(status_code=503, text="Service Unavailable", request=httpx.Request("GET", "https://api.waterdata.usgs.gov"))
     fetcher._client.get = AsyncMock(return_value=mock_503)
 
-    with patch("asyncio.sleep", new_callable=AsyncMock):
+    with patch("water_agent.fetchers.samples_fetcher.asyncio.sleep", new_callable=AsyncMock):
         with pytest.raises(SamplesError):
             await fetcher.get_results_count({"stateFips": "US:37"})
 

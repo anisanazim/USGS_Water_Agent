@@ -1,0 +1,20 @@
+{
+  "query": "What was the latest daily streamflow at USGS-02087500?",
+  "station_id": "USGS-02087500",
+  "station_name": "NEUSE RIVER NEAR CLAYTON, NC",
+  "parameter_code": "00060",
+  "stat_code": "00003",
+  "usgs_api_payload": {
+    "monitoring_location_id": "USGS-02087500",
+    "monitoring_location_name": "NEUSE RIVER NEAR CLAYTON, NC",
+    "parameter_code": "00060",
+    "parameter_description": "Discharge, cubic feet per second",
+    "statistic_code": "00003",
+    "statistic_description": "Mean",
+    "unit": "ft3/s",
+    "latest_value": 1420.0,
+    "observation_date": "2026-10-28",
+    "approval_status": "Approved"
+  },
+  "agent_response": "The latest daily mean **streamflow** at **USGS-02087500** (**NEUSE RIVER NEAR CLAYTON, NC**) was **1,420.0 ft³/s** on **October 28, 2026**.\n\n### Measurement Details:\n- **Parameter Code**: 00060 (Discharge, cubic feet per second)\n- **Statistic**: 00003 (Daily Mean)\n- **Observed Value**: 1,420.0 ft³/s\n- **Status**: Approved\n- **Modality**: Continuous daily sensor observations (OGC Daily Values)."
+}

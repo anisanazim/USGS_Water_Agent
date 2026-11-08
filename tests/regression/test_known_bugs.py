@@ -75,3 +75,34 @@ def test_bug_4_query_planner_client_explicit_timeout():
     planner = QueryPlanner()
     assert planner.client.timeout is not None
     assert planner.client.timeout <= 45.0
+
+
+@pytest.mark.asyncio
+async def test_bug_5_circuit_breaker_test_sleep_stall():
+    """Bug 5 Regression:
+    Unmocked or incorrectly targeted asyncio.sleep in USGSSamplesFetcher retry loops
+    causes unit tests to stall for 14-28 seconds on 503 errors.
+    Verify targeted patching allows fast failure in < 0.1s.
+    """
+    import time
+    from unittest.mock import AsyncMock, patch
+    import httpx
+    from water_agent.fetchers.samples_fetcher import SamplesError
+
+    fetcher = USGSSamplesFetcher()
+    fetcher.circuit_breaker.failure_threshold = 2
+    mock_503 = httpx.Response(
+        status_code=503,
+        text="Service Unavailable",
+        request=httpx.Request("GET", "https://api.waterdata.usgs.gov"),
+    )
+    fetcher._client.get = AsyncMock(return_value=mock_503)
+
+    t0 = time.monotonic()
+    with patch("water_agent.fetchers.samples_fetcher.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(SamplesError):
+            await fetcher.get_results_count({"stateFips": "US:37"})
+
+    elapsed = time.monotonic() - t0
+    assert elapsed < 1.0, f"Retry sleep was not bypassed; took {elapsed:.2f}s"
+

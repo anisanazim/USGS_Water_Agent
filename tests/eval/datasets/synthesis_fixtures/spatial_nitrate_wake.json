@@ -1,0 +1,70 @@
+{
+  "query": "Where is nitrate monitored in Wake County, NC?",
+  "state": "North Carolina",
+  "county": "Wake",
+  "fips": "37183",
+  "parameter": "nitrate",
+  "usgs_api_payload": {
+    "locationsCount": 8,
+    "constituentPcodes": ["00618", "00620", "00631"],
+    "locations": [
+      {
+        "id": "USGS-02087500",
+        "name": "NEUSE RIVER NEAR CLAYTON, NC",
+        "latitude": 35.6514,
+        "longitude": -78.4717,
+        "sample_count": 389
+      },
+      {
+        "id": "USGS-02087350",
+        "name": "CRABTREE CREEK AT US 1 AT RALEIGH, NC",
+        "latitude": 35.8018,
+        "longitude": -78.6186,
+        "sample_count": 310
+      },
+      {
+        "id": "USGS-02087324",
+        "name": "CRABTREE CREEK AT EBENEZER CHURCH RD NEAR RALEIGH, NC",
+        "latitude": 35.8504,
+        "longitude": -78.7058,
+        "sample_count": 215
+      },
+      {
+        "id": "USGS-02087183",
+        "name": "NEUSE RIVER AT SMITHFIELD RD NR KNIGHTDALE, NC",
+        "latitude": 35.7701,
+        "longitude": -78.4839,
+        "sample_count": 142
+      },
+      {
+        "id": "USGS-02087580",
+        "name": "SWIFT CREEK NEAR APEX, NC",
+        "latitude": 35.7046,
+        "longitude": -78.7842,
+        "sample_count": 98
+      },
+      {
+        "id": "USGS-0208726005",
+        "name": "WALNUT CREEK AT SUNNYBROOK RD AT RALEIGH, NC",
+        "latitude": 35.7538,
+        "longitude": -78.5833,
+        "sample_count": 87
+      },
+      {
+        "id": "USGS-0208732885",
+        "name": "MARSH CREEK AT NEW HOPE RD NR RALEIGH, NC",
+        "latitude": 35.8235,
+        "longitude": -78.5700,
+        "sample_count": 64
+      },
+      {
+        "id": "USGS-02087570",
+        "name": "LAKE JOHNSON NEAR RALEIGH, NC",
+        "latitude": 35.7601,
+        "longitude": -78.7128,
+        "sample_count": 45
+      }
+    ]
+  },
+  "agent_response": "Found **8** monitoring stations with discrete **nitrate** measurements in **Wake County, NC** (FIPS: 37183).\n\n### Monitoring Locations:\n| Station ID | Station Name | Latitude | Longitude | Discrete Samples |\n| :---: | :--- | :---: | :---: | :---: |\n| **USGS-02087500** | NEUSE RIVER NEAR CLAYTON, NC | 35.6514 | -78.4717 | 389 |\n| **USGS-02087350** | CRABTREE CREEK AT US 1 AT RALEIGH, NC | 35.8018 | -78.6186 | 310 |\n| **USGS-02087324** | CRABTREE CREEK AT EBENEZER CHURCH RD NEAR RALEIGH, NC | 35.8504 | -78.7058 | 215 |\n| **USGS-02087183** | NEUSE RIVER AT SMITHFIELD RD NR KNIGHTDALE, NC | 35.7701 | -78.4839 | 142 |\n| **USGS-02087580** | SWIFT CREEK NEAR APEX, NC | 35.7046 | -78.7842 | 98 |\n| **USGS-0208726005** | WALNUT CREEK AT SUNNYBROOK RD AT RALEIGH, NC | 35.7538 | -78.5833 | 87 |\n| **USGS-0208732885** | MARSH CREEK AT NEW HOPE RD NR RALEIGH, NC | 35.8235 | -78.5700 | 64 |\n| **USGS-02087570** | LAKE JOHNSON NEAR RALEIGH, NC | 35.7601 | -78.7128 | 45 |\n\nConstituent parameter codes included: **00618** (Nitrate, water, filtered), **00620** (Nitrate, water, unfiltered), and **00631** (Nitrate plus nitrite, water, filtered).\n\nModality: discrete sample measurements (not continuous sensors).\nSample media: Water."
+}

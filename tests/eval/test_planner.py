@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from deepeval.models import OpenAIModel
+from deepeval.models import GPTModel
 from deepeval.metrics import GEval
-from deepeval.test_case import LLMTestCase, SingleTurnParams
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 
 from water_agent.query_planner import QueryPlanner
 from water_agent.metadata.models import QueryIntent, ParameterModality
@@ -28,8 +28,8 @@ def planner() -> QueryPlanner:
 
 
 @pytest.fixture
-def eval_llm() -> OpenAIModel:
-    return OpenAIModel(
+def eval_llm() -> GPTModel:
+    return GPTModel(
         model=os.environ.get("OPENAI_MODEL", "gpt-5.6-luna"),
         base_url=os.environ.get("OPENAI_BASE_URL"),
         api_key=os.environ.get("OPENAI_API_KEY"),
@@ -49,7 +49,7 @@ async def test_planner_fm01_zero_discovery(planner: QueryPlanner):
 
 
 @pytest.mark.asyncio
-async def test_planner_fm02_missing_geo_clarification(planner: QueryPlanner, eval_llm: OpenAIModel):
+async def test_planner_fm02_missing_geo_clarification(planner: QueryPlanner, eval_llm: GPTModel):
     """FM-02 Planner: 'Where is streamflow monitored?' (no state/county) -> clarification.
     Uses DeepEval G-Eval LLM-as-judge to verify the gist of the clarification text.
     """
@@ -68,7 +68,7 @@ async def test_planner_fm02_missing_geo_clarification(planner: QueryPlanner, eva
             "Evaluate whether the actual output asks the user to narrow down their query "
             "by providing a geographic constraint such as a state or county."
         ),
-        evaluation_params=[SingleTurnParams.ACTUAL_OUTPUT],
+        evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
         model=eval_llm,
         threshold=0.7,
     )
@@ -108,7 +108,7 @@ async def test_planner_fm04_multi_pcode_calcium_count(planner: QueryPlanner):
 
 
 @pytest.mark.asyncio
-async def test_planner_fm07_multiple_candidates_state_clarification(planner: QueryPlanner, eval_llm: OpenAIModel):
+async def test_planner_fm07_multiple_candidates_state_clarification(planner: QueryPlanner, eval_llm: GPTModel):
     """FM-07 Planner: 'Where is nitrate monitored in Orange County?' (ambiguous state).
     Must trigger clarification requesting state disambiguation.
     """
@@ -127,7 +127,7 @@ async def test_planner_fm07_multiple_candidates_state_clarification(planner: Que
             "Evaluate whether the actual output asks the user to clarify which state "
             "they are referring to (since Orange County exists in multiple states like NC, CA, FL, NY)."
         ),
-        evaluation_params=[SingleTurnParams.ACTUAL_OUTPUT],
+        evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
         model=eval_llm,
         threshold=0.7,
     )

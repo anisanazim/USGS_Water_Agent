@@ -93,7 +93,7 @@ async def test_routing_fm09_upstream_outage_circuit_breaker_recovery():
     )
     fetcher._client.get = AsyncMock(return_value=mock_503)
 
-    with patch("asyncio.sleep", new_callable=AsyncMock):
+    with patch("water_agent.fetchers.samples_fetcher.asyncio.sleep", new_callable=AsyncMock):
         with pytest.raises(SamplesError):
             await fetcher.get_results_count({"stateFips": "US:37"})
         with pytest.raises(SamplesError):

@@ -117,11 +117,14 @@ tests/
 │   │   ├── failure_modes.json             # Benchmark cases FM-01 through FM-09
 │   │   └── synthesis_fixtures/            # Frozen USGS API payloads
 │   │       ├── count_phosphorus.json
-│   │       └── spatial_nitrate_wake.json
+│   │       ├── spatial_nitrate_wake.json
+│   │       └── observation_streamflow_clayton.json
 │   │
 │   ├── test_planner.py                    # Planner LLM (Deterministic + G-Eval Gist)
 │   ├── test_routing.py                    # Deterministic routing & FIPS mapping
-│   └── test_response.py                   # Response synthesis (DeepEval Faithfulness/Relevancy/G-Eval)
+│   ├── test_response.py                   # Response synthesis (DeepEval Faithfulness/Relevancy/G-Eval)
+│   └── test_benchmark_scorecard.py        # Automated consolidated 9-case failure mode scorecard
+│
 │
 ├── regression/                            # Permanent Bug Museum
 │   └── test_known_bugs.py                 # Bugs 1 through 5
@@ -137,5 +140,6 @@ tests/
 | Suite | Frequency | Command | Latency | Network Needed? |
 | :--- | :--- | :--- | :--- | :--- |
 | **Unit & Routing** | Every git commit / PR | `pytest tests/eval/test_routing.py tests/regression/` | < 2s | No |
+| **Benchmark Scorecard** | Pre-release / Model bump | `pytest tests/eval/test_benchmark_scorecard.py -v -s` | ~18s | Yes (LLM gateway) |
 | **Eval Harness** | Pre-merge / Model bump | `pytest tests/eval/test_planner.py tests/eval/test_response.py` | ~40s | Yes (LLM gateway) |
 | **Smoke Suite** | Nightly (Scheduled) | `pytest tests/smoke/ -m smoke` | ~15s | Yes (Live USGS + LLM) |
