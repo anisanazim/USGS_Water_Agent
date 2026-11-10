@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
+from water_agent.handlers.common import append_temporal_not_applied_note
 from water_agent.metadata.discrete_families import get_parameter
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
@@ -53,6 +54,7 @@ async def handle_spatial(
                 "Continuous automated in-situ sensors (e.g. optical fluorescence sensors) "
                 "may exist on the continuous sensor network."
             )
+        reply_msg = append_temporal_not_applied_note(reply_msg, plan)
         await context.reply(reply_msg, data=plan.model_dump())
         return
 
@@ -159,4 +161,5 @@ async def handle_spatial(
     )
     ctx.store.set_artifact_id(plan.stations_ref, artifact_id)
 
+    response_text = append_temporal_not_applied_note(response_text, plan)
     await context.reply(response_text, data=plan.model_dump())

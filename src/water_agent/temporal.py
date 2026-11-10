@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from water_agent.fetchers.samples_fetcher import DateParseError, resolve_date_window
 
@@ -187,14 +187,17 @@ def _normalize_season(raw: str | None) -> str | None:
     return low
 
 
-def _validate_year(year: int, today: date | None) -> int:
+def _validate_year(
+    year: int, today: date | None, max_year: int | None = None
+) -> int:
     if year < MIN_YEAR:
         raise TemporalResolutionError(
             f"Year {year} is before minimum supported year {MIN_YEAR}."
         )
-    if today is not None and year > today.year:
+    upper = max_year if max_year is not None else (today.year if today is not None else None)
+    if upper is not None and year > upper:
         raise TemporalResolutionError(
-            f"Year {year} is out of valid range ({MIN_YEAR}-{today.year})."
+            f"Year {year} is out of valid range ({MIN_YEAR}-{upper})."
         )
     return year
 
@@ -605,7 +608,8 @@ def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
     # Branch 4: Named season (with or without year)
     if season is not None:
         if year is not None:
-            _validate_year(year, today)
+            max_year = today.year + 1 if season == "winter" else today.year
+            _validate_year(year, today, max_year=max_year)
             start, end = _season_bounds(season, year)
             if start > today:
                 raise TemporalResolutionError(
@@ -664,17 +668,23 @@ def resolve_plan_window(plan: Any, today: date | None = None) -> TemporalSpec | 
         today = current_date()
 
     temporal_error = getattr(plan, "temporal_error", None)
+    clean_error_msg = (
+        "I couldn't understand the date period in your question. "
+        "Try e.g. '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022'."
+    )
     if isinstance(temporal_error, str) and temporal_error.strip():
-        raise TemporalResolutionError(
-            f"I could not understand the date period ({temporal_error}). "
-            "Please provide a clearer date range (for example, '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022')."
-        )
+        logger.info("Invalid temporal specification on QueryPlan: %s", temporal_error)
+        raise TemporalResolutionError(clean_error_msg)
 
     raw_filters = getattr(plan, "filters", None)
     filters = raw_filters if isinstance(raw_filters, dict) else {}
     req = getattr(plan, "temporal", None)
     if isinstance(req, dict):
-        req = TemporalRequest.model_validate(req)
+        try:
+            req = TemporalRequest.model_validate(req)
+        except (ValidationError, TypeError, ValueError) as exc:
+            logger.info("Invalid temporal dict on QueryPlan: %s", exc)
+            raise TemporalResolutionError(clean_error_msg) from None
     elif not isinstance(req, TemporalRequest):
         req = None
 

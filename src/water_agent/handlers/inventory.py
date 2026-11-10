@@ -5,7 +5,10 @@ import uuid
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
-from water_agent.handlers.common import format_date_for_display
+from water_agent.handlers.common import (
+    append_temporal_not_applied_note,
+    format_date_for_display,
+)
 from water_agent.metadata.discrete_families import get_parameter, resolve_discrete_parameter
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
@@ -147,4 +150,5 @@ async def handle_inventory(
     )
     ctx.store.set_artifact_id(plan.inventory_ref, artifact_id)
 
+    response_text = append_temporal_not_applied_note(response_text, plan)
     await context.reply(response_text, data=plan.model_dump())

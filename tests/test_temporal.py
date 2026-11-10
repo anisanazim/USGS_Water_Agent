@@ -335,6 +335,14 @@ TODAY_DEFAULT = date(2026, 11, 10)
             frozenset(),
             False,
         ),
+        (
+            {"season": "winter", "year": 2027},
+            date(2026, 12, 15),
+            date(2026, 12, 1),
+            date(2027, 2, 28),
+            frozenset({12, 1, 2}),
+            False,
+        ),
     ],
 )
 def test_resolve_temporal_valid_cases(
@@ -371,6 +379,7 @@ def test_labels_include_computed_dates_and_descriptions():
         ({"season": "monsoon", "year": 2022}, TODAY_DEFAULT, "season"),
         ({"year": 1799}, TODAY_DEFAULT, "1800"),
         ({"year": 2027}, TODAY_DEFAULT, "2026"),
+        ({"season": "winter", "year": 2027}, TODAY_DEFAULT, "future"),
         ({"relative": "past", "unit": "year", "n": 0}, TODAY_DEFAULT, "at least 1"),
         ({"relative": "past", "unit": "year", "n": -2}, TODAY_DEFAULT, "at least 1"),
         ({"start": "2020", "month": 3}, TODAY_DEFAULT, "Cannot combine explicit start/end"),
@@ -440,10 +449,19 @@ def test_resolve_plan_window_contract(caplog):
     p_empty = QueryPlan(filters={"parameter_code": "00060"})
     assert resolve_plan_window(p_empty, today=TODAY_DEFAULT) is None
 
-    # 2. temporal_error -> raises TemporalResolutionError
+    # 2. temporal_error -> logs full error at INFO, raises clean user-facing message only
     p_err = QueryPlan(filters={"parameter_code": "00060"}, temporal_error="Month 13 out of range")
-    with pytest.raises(TemporalResolutionError, match="Month 13 out of range"):
-        resolve_plan_window(p_err, today=TODAY_DEFAULT)
+    with caplog.at_level(logging.INFO, logger="water_agent.temporal"):
+        with pytest.raises(
+            TemporalResolutionError,
+            match="I couldn't understand the date period in your question",
+        ) as exc_info:
+            resolve_plan_window(p_err, today=TODAY_DEFAULT)
+    assert "Month 13 out of range" not in str(exc_info.value)
+    assert any(
+        r.levelno == logging.INFO and "Month 13 out of range" in r.message
+        for r in caplog.records
+    )
 
     # 3. Legacy fallback -> TemporalSpec with empty months
     p_leg = QueryPlan(filters={"start_date": "2020-01-01", "end_date": "2023-07-31"})

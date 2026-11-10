@@ -61,3 +61,28 @@ async def resolve_handler_temporal_window(
         return None, False
 
     return spec, True
+
+
+TEMPORAL_NOT_APPLIED_NOTE = (
+    "Note: the date period in your question isn't applied to station discovery/inventory."
+)
+
+
+def append_temporal_not_applied_note(reply_text: str, plan: Any) -> str:
+    """Append a non-fatal note when spatial/inventory plans carry a temporal constraint or error."""
+    temporal_err = getattr(plan, "temporal_error", None)
+    has_error = isinstance(temporal_err, str) and bool(temporal_err.strip())
+
+    raw_temporal = getattr(plan, "temporal", None)
+    has_temporal = False
+    if isinstance(raw_temporal, temporal.TemporalRequest):
+        has_temporal = temporal.has_temporal_fields(raw_temporal)
+    elif isinstance(raw_temporal, dict):
+        has_temporal = any(
+            v is not None and (not isinstance(v, str) or v.strip() != "")
+            for v in raw_temporal.values()
+        )
+
+    if has_error or has_temporal:
+        return f"{reply_text}\n\n{TEMPORAL_NOT_APPLIED_NOTE}"
+    return reply_text

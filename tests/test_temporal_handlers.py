@@ -338,8 +338,10 @@ async def test_legacy_dates_and_temporal_conflict_resolution():
 
 
 @pytest.mark.asyncio
-async def test_temporal_error_replies_and_makes_zero_fetches():
-    """When plan.temporal_error is set, count and observation handlers reply and make zero upstream calls."""
+async def test_temporal_error_replies_and_makes_zero_fetches(caplog):
+    """When plan.temporal_error is set, handlers log detail at INFO, reply cleanly, and make zero upstream calls."""
+    import logging
+
     # Count handler
     mc_c, mp_c = _make_ctx_and_process()
     mf_c = AsyncMock(spec=USGSSamplesFetcher)
@@ -348,15 +350,22 @@ async def test_temporal_error_replies_and_makes_zero_fetches():
         filters={"monitoring_location_id": "USGS-02087500", "parameter_code": "phosphorus"},
         temporal_error="Month 13 is out of range; expected 1-12.",
     )
-    await handle_parameter_count(
-        context=mc_c,
-        process=mp_c,
-        plan=plan_c,
-        ctx=RequestContext(request_id="test-terr-count"),
-        request="How many phosphorus records in month 13?",
-        samples_fetcher=mf_c,
+    with caplog.at_level(logging.INFO, logger="water_agent.temporal"):
+        await handle_parameter_count(
+            context=mc_c,
+            process=mp_c,
+            plan=plan_c,
+            ctx=RequestContext(request_id="test-terr-count"),
+            request="How many phosphorus records in month 13?",
+            samples_fetcher=mf_c,
+        )
+    reply_c = mc_c.reply.call_args[0][0]
+    assert reply_c == (
+        "I couldn't understand the date period in your question. "
+        "Try e.g. '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022'."
     )
-    assert "Month 13" in mc_c.reply.call_args[0][0]
+    assert "Month 13" not in reply_c
+    assert any("Month 13" in r.message for r in caplog.records)
     assert not mf_c.get_results_count.called
 
     # Observation handler (continuous)
@@ -375,6 +384,147 @@ async def test_temporal_error_replies_and_makes_zero_fetches():
         ctx=RequestContext(request_id="test-terr-obs"),
         water_data_fetcher=wf_o,
     )
-    assert "monsoon" in mc_o.reply.call_args[0][0]
+    reply_o = mc_o.reply.call_args[0][0]
+    assert reply_o == (
+        "I couldn't understand the date period in your question. "
+        "Try e.g. '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022'."
+    )
+    assert "monsoon" not in reply_o
     assert not wf_o.fetch_daily_values.called
+
+
+@pytest.mark.asyncio
+async def test_pydantic_validation_error_in_temporal_never_leaks_to_reply():
+    """Bad temporal payload like {'month': [3]} must not leak pydantic ValidationError text into user reply."""
+    from water_agent.query_planner import QueryPlanner
+
+    plan = QueryPlanner._parse_plan(
+        '{"intent": "observation", "modality": "continuous", '
+        '"filters": {"parameter_code": "00060", "monitoring_location_id": "USGS-02087500"}, '
+        '"temporal": {"month": [3]}}'
+    )
+    assert plan.temporal is None
+    assert plan.temporal_error is not None
+
+    mc, mp = _make_ctx_and_process()
+    wf = AsyncMock(spec=USGSWaterDataFetcher)
+    await handle_observation(
+        context=mc,
+        process=mp,
+        plan=plan,
+        ctx=RequestContext(request_id="test-pydantic-leak"),
+        water_data_fetcher=wf,
+    )
+
+    reply_text = mc.reply.call_args[0][0]
+    assert "I couldn't understand the date period in your question." in reply_text
+    reply_lower = reply_text.lower()
+    assert "validation error" not in reply_lower
+    assert "pydantic" not in reply_lower
+    assert "errors.pydantic.dev" not in reply_lower
+    assert not wf.fetch_daily_values.called
+
+
+@pytest.mark.asyncio
+async def test_spatial_handler_appends_temporal_note_without_failing():
+    """Spatial discovery succeeds and appends date-period-not-applied note when temporal or temporal_error is set."""
+    from water_agent.handlers.spatial import handle_spatial
+
+    expected_note = "Note: the date period in your question isn't applied to station discovery/inventory."
+
+    # 1. With temporal field on populated discrete discovery
+    mc1, mp1 = _make_ctx_and_process()
+    ctx1 = RequestContext(request_id="test-sp-temp")
+    handle1 = ctx1.store.put(
+        kind="stations",
+        items={
+            "stations": [{"id": "USGS-02087500", "name": "Neuse River", "site_type": "Stream"}],
+            "modality": "discrete",
+            "family": "calcium",
+            "pcodes": ["00915"],
+        },
+        summary="1 station",
+        sample=[],
+        provenance={"modality": "discrete", "source_urls": ["https://test.url"]},
+        count=1,
+    )
+    plan1 = QueryPlan(
+        intent="spatial_discovery",
+        modality="discrete",
+        stations_ref=handle1.ref,
+        filters={"parameter_code": "00915", "state_code": "37"},
+        temporal=TemporalRequest(phrase="winter 2022", season="winter", year=2022),
+    )
+    await handle_spatial(mc1, mp1, plan1, ctx1)
+    reply1 = mc1.reply.call_args[0][0]
+    assert "Found **1** distinct monitoring locations" in reply1
+    assert expected_note in reply1
+
+    # 2. With temporal_error on 0-station discovery -> does not fail, appends note
+    mc2, mp2 = _make_ctx_and_process()
+    ctx2 = RequestContext(request_id="test-sp-terr")
+    handle2 = ctx2.store.put(
+        kind="stations",
+        items={"stations": [], "modality": "continuous"},
+        summary="0 stations",
+        sample=[],
+        provenance={"modality": "continuous"},
+        count=0,
+    )
+    plan2 = QueryPlan(
+        intent="spatial_discovery",
+        modality="continuous",
+        stations_ref=handle2.ref,
+        filters={"parameter_code": "00060", "state_code": "37"},
+        temporal_error="Unrecognized season 'monsoon'.",
+    )
+    await handle_spatial(mc2, mp2, plan2, ctx2)
+    reply2 = mc2.reply.call_args[0][0]
+    assert "I found no USGS monitoring locations" in reply2
+    assert expected_note in reply2
+
+
+@pytest.mark.asyncio
+async def test_inventory_handler_appends_temporal_note_without_failing():
+    """Inventory handler succeeds and appends date-period-not-applied note when temporal or temporal_error is set."""
+    from water_agent.handlers.inventory import handle_inventory
+
+    expected_note = "Note: the date period in your question isn't applied to station discovery/inventory."
+
+    for kwargs in (
+        {"temporal": TemporalRequest(phrase="in 2021", start="2021", end="2021")},
+        {"temporal_error": "Month 13 is out of range"},
+    ):
+        mc, mp = _make_ctx_and_process()
+        ctx = RequestContext(request_id="test-inv-temp")
+        handle = ctx.store.put(
+            kind="inventory",
+            items={
+                "monitoring_location_id": "USGS-02087500",
+                "parameters": {
+                    "00060": {
+                        "name": "Streamflow",
+                        "estimated_daily_records": 5000,
+                        "begin": "2000-01-01",
+                        "end": "2026-01-01",
+                    }
+                },
+                "discrete_parameters": {},
+                "discrete_total_observations": 0,
+            },
+            summary="inventory",
+            sample=[],
+            provenance={"source_urls": ["https://test.url"]},
+            count=1,
+        )
+        plan = QueryPlan(
+            intent="station_inventory",
+            inventory_ref=handle.ref,
+            filters={},
+            **kwargs,
+        )
+        await handle_inventory(mc, mp, plan, ctx, request="What data is available at USGS-02087500?")
+        reply = mc.reply.call_args[0][0]
+        assert "Available data parameters for **USGS-02087500**" in reply
+        assert expected_note in reply
 
