@@ -248,3 +248,45 @@ async def test_call_tool_with_spatial_query_result_dto():
     assert res["count"] == 0
     assert len(ctx.tool_errors) == 0
     assert ctx.store.get(res["ref"], "stations") is not None
+
+
+def test_parse_plan_temporal_valid_garbage_and_absent():
+    """Verify QueryPlanner._parse_plan parses valid temporal, degrades bad temporal into temporal_error, and leaves omitted temporal unchanged."""
+    from water_agent.query_planner import SYSTEM_PROMPT
+
+    assert "Dates and time periods" in SYSTEM_PROMPT
+    assert '"temporal"' in SYSTEM_PROMPT
+
+    # 1. Valid temporal parses cleanly
+    p_valid = QueryPlanner._parse_plan(
+        '{"intent": "observation", "modality": "discrete", '
+        '"filters": {"monitoring_location_id": "USGS-02087500", "parameter_code": "00300"}, '
+        '"temporal": {"phrase": "between January 2020 and July 2023", "start": "2020-01", "end": "2023-07"}}'
+    )
+    assert p_valid.filters["parameter_code"] == "00300"
+    assert p_valid.temporal is not None
+    assert p_valid.temporal.start == "2020-01"
+    assert p_valid.temporal.end == "2023-07"
+    assert p_valid.temporal.phrase == "between January 2020 and July 2023"
+    assert p_valid.temporal_error is None
+
+    # 2. Temporal with garbage still produces usable plan + sets temporal_error
+    garbage_payloads = [
+        '{"intent": "observation", "filters": {"parameter_code": "00060"}, "temporal": {"month": "13"}}',
+        '{"intent": "observation", "filters": {"parameter_code": "00060"}, "temporal": {"season": "monsoon"}}',
+        '{"intent": "observation", "filters": {"parameter_code": "00060"}, "temporal": "last winter"}',
+        '{"intent": "observation", "filters": {"parameter_code": "00060"}, "temporal": {"month": ["March"], "year": 2022}}',
+    ]
+    for raw_json in garbage_payloads:
+        plan = QueryPlanner._parse_plan(raw_json)
+        assert plan.filters["parameter_code"] == "00060"
+        assert plan.temporal is None
+        assert plan.temporal_error is not None and len(plan.temporal_error) > 0
+        assert plan.clarification_needed is None
+
+    # 3. No temporal -> unchanged (both None)
+    p_none = QueryPlanner._parse_plan(
+        '{"intent": "observation", "filters": {"parameter_code": "00060"}}'
+    )
+    assert p_none.temporal is None
+    assert p_none.temporal_error is None

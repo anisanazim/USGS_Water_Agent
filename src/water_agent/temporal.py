@@ -166,15 +166,19 @@ def _normalize_season(raw: str | None) -> str | None:
     return low
 
 
-def _validate_year(year: int, today: date) -> int:
-    if year < MIN_YEAR or year > today.year:
+def _validate_year(year: int, today: date | None) -> int:
+    if year < MIN_YEAR:
+        raise TemporalResolutionError(
+            f"Year {year} is before minimum supported year {MIN_YEAR}."
+        )
+    if today is not None and year > today.year:
         raise TemporalResolutionError(
             f"Year {year} is out of valid range ({MIN_YEAR}-{today.year})."
         )
     return year
 
 
-def _parse_partial_iso(raw: str, is_end: bool, today: date) -> date:
+def _parse_partial_iso(raw: str, is_end: bool, today: date | None) -> date:
     s = raw.strip()
     if re.fullmatch(r"\d{4}", s):
         y = _validate_year(int(s), today)
@@ -446,14 +450,20 @@ def has_temporal_fields(req: TemporalRequest) -> bool:
     )
 
 
-def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
-    """Resolve a structured TemporalRequest into concrete dates using injected `today`."""
+def _normalize_and_validate_parts(
+    req: TemporalRequest,
+) -> tuple[str | None, str | None, str | None, int | None, str | None, int | None, str | None, str | None, int | None]:
+    """Validate types, ranges, combinations, and partial ISO syntax independent of `today`."""
     phrase = _clean_opt_str(req.phrase)
     raw_start = _clean_opt_str(req.start)
     raw_end = _clean_opt_str(req.end)
     month = _normalize_month(req.month)
     season = _normalize_season(req.season)
     year = _parse_int(req.year, "year")
+    if year is not None and year < MIN_YEAR:
+        raise TemporalResolutionError(
+            f"Year {year} is before minimum supported year {MIN_YEAR}."
+        )
     raw_rel = _clean_opt_str(req.relative)
     relative = raw_rel.lower() if raw_rel else None
     raw_unit = _clean_opt_str(req.unit)
@@ -471,7 +481,6 @@ def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
     if n is not None and n < 1:
         raise TemporalResolutionError(f"Count 'n' must be at least 1 (got {n}).")
 
-    # Validation: disallow combining mutually exclusive groups
     if month is not None and season is not None:
         raise TemporalResolutionError("Cannot combine both a month and a season.")
 
@@ -486,6 +495,40 @@ def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
         raise TemporalResolutionError(
             "Cannot combine explicit start/end bounds with month, season, year, or unit fields."
         )
+
+    if raw_start is not None:
+        _parse_partial_iso(raw_start, is_end=False, today=None)
+    if raw_end is not None:
+        _parse_partial_iso(raw_end, is_end=True, today=None)
+
+    if relative is None and (unit is not None or n is not None):
+        raise TemporalResolutionError(
+            "A relative qualifier ('this', 'last', or 'past N') is required with unit/count."
+        )
+
+    return phrase, raw_start, raw_end, month, season, year, relative, unit, n
+
+
+def validate_temporal_syntax(req: TemporalRequest) -> None:
+    """Validate structure and static values of a TemporalRequest without needing `today`."""
+    if not has_temporal_fields(req):
+        return
+    _normalize_and_validate_parts(req)
+
+
+def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
+    """Resolve a structured TemporalRequest into concrete dates using injected `today`."""
+    (
+        phrase,
+        raw_start,
+        raw_end,
+        month,
+        season,
+        year,
+        relative,
+        unit,
+        n,
+    ) = _normalize_and_validate_parts(req)
 
     # Branch 1: Explicit range bounds
     if raw_start is not None or raw_end is not None:
@@ -511,12 +554,6 @@ def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
     # Branch 2: Relative expressions
     if relative is not None:
         return _resolve_relative(relative, unit, n, month, season, year, phrase, today)
-
-    # Reject dangling unit/n without relative
-    if unit is not None or n is not None:
-        raise TemporalResolutionError(
-            "A relative qualifier ('this', 'last', or 'past N') is required with unit/count."
-        )
 
     # Branch 3: Named month (with or without year)
     if month is not None:

@@ -129,5 +129,206 @@
       "expected_status_code": 503,
       "user_friendly_message_required": true
     }
+  },
+  {
+    "id": "TEMP-01",
+    "name": "TEMPORAL_RANGE_MONTH_YEAR",
+    "description": "Explicit month-year range must extract partial ISO bounds into temporal without computing day-of-month end dates or putting dates in filters.",
+    "query": "Can you retrieve records of dissolved oxygen available between January 2020 and July 2023 at USGS-02087500?",
+    "expected_planner": {
+      "intent": "observation",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00300"
+      },
+      "temporal": {
+        "start": "2020-01",
+        "end": "2023-07"
+      }
+    }
+  },
+  {
+    "id": "TEMP-02",
+    "name": "TEMPORAL_SINGLE_YEAR",
+    "description": "Single calendar year must extract start='2021', end='2021' in temporal.",
+    "query": "Show me streamflow at USGS-02087500 in 2021.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "continuous",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00060"
+      },
+      "temporal": {
+        "start": "2021",
+        "end": "2021"
+      }
+    }
+  },
+  {
+    "id": "TEMP-03",
+    "name": "TEMPORAL_OPEN_START_SINCE",
+    "description": "Open-ended 'since 2020' must extract start='2020' (or relative='since', year=2020) in temporal.",
+    "query": "How many phosphorus records at USGS-0423205010 since 2020?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-0423205010"
+      },
+      "temporal": {
+        "start": "2020"
+      }
+    }
+  },
+  {
+    "id": "TEMP-04",
+    "name": "TEMPORAL_MONTH_AND_YEAR",
+    "description": "Specific month and year ('in March 2021') must extract month=3, year=2021 in temporal.",
+    "query": "Show me calcium values at USGS-0423205010 in March 2021.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "discrete",
+      "filters": {
+        "monitoring_location_id": "USGS-0423205010"
+      },
+      "temporal": {
+        "month": 3,
+        "year": 2021
+      }
+    }
+  },
+  {
+    "id": "TEMP-05",
+    "name": "TEMPORAL_MONTH_NO_YEAR",
+    "description": "Month without a year ('during the month of March') must extract month=3 without inventing a year.",
+    "query": "Can you summarize how many records of pH are available during the month of March at USGS-02087500?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      },
+      "temporal": {
+        "month": 3
+      }
+    }
+  },
+  {
+    "id": "TEMP-06",
+    "name": "TEMPORAL_WINTER_SINGLE_YEAR",
+    "description": "'winter 2022' must extract season='winter', year=2022.",
+    "query": "How many organic carbon records at USGS-02087500 in winter 2022?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      },
+      "temporal": {
+        "season": "winter",
+        "year": 2022
+      }
+    }
+  },
+  {
+    "id": "TEMP-07",
+    "name": "TEMPORAL_WINTER_SPAN_YEAR",
+    "description": "'winter 2022-23' must extract season='winter', year=2023 (year of its January).",
+    "query": "Show me mean daily streamflow at USGS-02087500 for winter 2022-23.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "continuous",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00060"
+      },
+      "temporal": {
+        "season": "winter",
+        "year": 2023
+      }
+    }
+  },
+  {
+    "id": "TEMP-08",
+    "name": "TEMPORAL_SEASON_NO_YEAR",
+    "description": "Season without year ('during the winter') must extract season='winter' without inventing a year.",
+    "query": "Can you summarize how many records of carbon are available during the winter at USGS-02087500?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      },
+      "temporal": {
+        "season": "winter"
+      }
+    }
+  },
+  {
+    "id": "TEMP-09",
+    "name": "TEMPORAL_RELATIVE_LAST_SEASON",
+    "description": "'last winter' must extract season='winter', relative='last'.",
+    "query": "Show me nitrate readings at USGS-02087500 from last winter.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "discrete",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      },
+      "temporal": {
+        "season": "winter",
+        "relative": "last"
+      }
+    }
+  },
+  {
+    "id": "TEMP-10",
+    "name": "TEMPORAL_RELATIVE_LAST_MONTH",
+    "description": "'last March' must extract month=3, relative='last'.",
+    "query": "Show me streamflow at USGS-02087500 during last March.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "continuous",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00060"
+      },
+      "temporal": {
+        "month": 3,
+        "relative": "last"
+      }
+    }
+  },
+  {
+    "id": "TEMP-11",
+    "name": "TEMPORAL_RELATIVE_THIS_YEAR",
+    "description": "'this year' must extract relative='this', unit='year'.",
+    "query": "How many nitrate records at USGS-02087500 this year?",
+    "expected_planner": {
+      "intent": "station_parameter_count",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500"
+      },
+      "temporal": {
+        "relative": "this",
+        "unit": "year"
+      }
+    }
+  },
+  {
+    "id": "TEMP-12",
+    "name": "TEMPORAL_RELATIVE_PAST_N_YEARS",
+    "description": "'past 5 years' must extract relative='past', unit='year', n=5.",
+    "query": "Show me mean daily streamflow at USGS-02087500 over the past 5 years.",
+    "expected_planner": {
+      "intent": "observation",
+      "modality": "continuous",
+      "filters": {
+        "monitoring_location_id": "USGS-02087500",
+        "parameter_code": "00060"
+      },
+      "temporal": {
+        "relative": "past",
+        "unit": "year",
+        "n": 5
+      }
+    }
   }
 ]

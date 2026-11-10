@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 load_dotenv()
 
@@ -15,6 +15,12 @@ from water_agent.metadata.references.store import ReferenceStore
 from water_agent.metadata.registry import QueryableRegistry, daily_registry
 from water_agent.results import RequestContext
 from water_agent.metadata.resolver import ReferenceResolver
+from water_agent.temporal import (
+    TemporalRequest,
+    TemporalResolutionError,
+    has_temporal_fields,
+    validate_temporal_syntax,
+)
 from water_agent.tools.queryable_search import QueryableSearchTool
 from water_agent.tools.reference_resolve import ReferenceResolveTool
 from water_agent.tools.reference_search import ReferenceSearchTool
@@ -70,6 +76,24 @@ about USGS water monitoring data and plan them across 5 core workflows into an e
    - If a question asks a general question without a station ID or geographic scope (e.g. "List parameters related to turbidity"), or if a parameter is ambiguous or outside retrievable metadata:
    - Result plan: {"intent": "clarification", "semantic": {...}, "filters": {}, "clarification_needed": "<polite explanation guiding user to provide a station or geographic area>"}
 
+7. Dates and time periods:
+   - Extract the user's words into top-level `temporal` fields strictly as said. NEVER compute calendar dates or date arithmetic yourself. NEVER put dates into `filters` (no start_date, end_date, or datetime in `filters`).
+   - For "latest", "most recent", "current", or "recent", omit `temporal` to use the existing latest behavior.
+   - For vague phrases with no recoverable time period (e.g. "a while ago", "back then"), set intent="clarification" and ask for a specific date range.
+   - Examples:
+     - "between January 2020 and July 2023" -> {"phrase": "between January 2020 and July 2023", "start": "2020-01", "end": "2023-07"}
+     - "in 2021" -> {"phrase": "in 2021", "start": "2021", "end": "2021"}
+     - "since 2020" -> {"phrase": "since 2020", "start": "2020"}
+     - "in March 2021" -> {"phrase": "in March 2021", "month": 3, "year": 2021}
+     - "during the month of March" -> {"phrase": "during the month of March", "month": 3}
+     - "winter 2022" -> {"phrase": "winter 2022", "season": "winter", "year": 2022}
+     - "winter 2022-23" -> {"phrase": "winter 2022-23", "season": "winter", "year": 2023}
+     - "during the winter" -> {"phrase": "during the winter", "season": "winter"}
+     - "last winter" -> {"phrase": "last winter", "season": "winter", "relative": "last"}
+     - "last March" -> {"phrase": "last March", "month": 3, "relative": "last"}
+     - "this year" -> {"phrase": "this year", "relative": "this", "unit": "year"}
+     - "past 5 years" -> {"phrase": "past 5 years", "relative": "past", "unit": "year", "n": 5}
+
 You have five tools:
 - search_queryables(query): find which Daily field is relevant to a concept.
 - search_reference(field_name, query): find candidate USGS values for a field by keyword.
@@ -84,7 +108,7 @@ CRITICAL RULES:
 - Never retry a tool call with the same arguments if it returns 0 results or an empty list; 0 results is a valid, definitive discovery outcome.
 
 Respond with ONLY a JSON object (no markdown code fences) of the form:
-{"intent": "observation" | "spatial_discovery" | "station_inventory" | "station_parameter_count" | "clarification", "modality": "continuous" | "discrete" | "mixed", "semantic": {"<concept>": "<plain phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "stations_ref": "<ref from spatial_query or omit>", "inventory_ref": "<ref from station_inventory or omit>", "clarification_needed": null}
+{"intent": "observation" | "spatial_discovery" | "station_inventory" | "station_parameter_count" | "clarification", "modality": "continuous" | "discrete" | "mixed", "semantic": {"<concept>": "<plain phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "temporal": {...} or omit, "stations_ref": "<ref from spatial_query or omit>", "inventory_ref": "<ref from station_inventory or omit>", "clarification_needed": null}
 """
 
 TOOL_SCHEMAS = [
@@ -239,10 +263,42 @@ class QueryPlan(BaseModel):
     modality: Optional[ParameterModality] = None
     semantic: dict[str, str] = Field(default_factory=dict)
     filters: dict[str, str] = Field(default_factory=dict)
+    temporal: TemporalRequest | None = None
+    temporal_error: str | None = None
     stations_ref: str | None = Field(default=None, description="Copy the ref verbatim from a spatial_query tool result")
     inventory_ref: str | None = Field(default=None, description="Copy the ref verbatim from a station_inventory tool result")
     clarification_needed: str | None = None
     ambiguous_candidates: list[str] = Field(default_factory=list)
+
+    @staticmethod
+    def _sanitize_temporal(raw: Any) -> tuple[TemporalRequest | None, str | None]:
+        if raw is None:
+            return None, None
+        if isinstance(raw, TemporalRequest):
+            req = raw
+        elif isinstance(raw, dict):
+            try:
+                req = TemporalRequest.model_validate(raw)
+            except (ValidationError, TypeError, ValueError) as exc:
+                return None, f"Invalid temporal specification: {exc}"
+        else:
+            return None, f"Invalid temporal specification: expected object, got {type(raw).__name__}."
+
+        if not has_temporal_fields(req):
+            return None, None
+
+        try:
+            validate_temporal_syntax(req)
+        except TemporalResolutionError as exc:
+            return None, str(exc)
+
+        return req, None
+
+    @field_validator("temporal", mode="before")
+    @classmethod
+    def validate_and_normalize_temporal(cls, v: Any) -> TemporalRequest | None:
+        req, _ = cls._sanitize_temporal(v)
+        return req
 
     @field_validator("filters", mode="before")
     @classmethod
@@ -263,6 +319,12 @@ class QueryPlan(BaseModel):
     @classmethod
     def normalize_intent_and_modality(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            data = dict(data)
+            if "temporal" in data and data["temporal"] is not None:
+                req, err = cls._sanitize_temporal(data["temporal"])
+                data["temporal"] = req
+                if err and not data.get("temporal_error"):
+                    data["temporal_error"] = err
             raw_intent = data.get("intent")
             if isinstance(raw_intent, str):
                 norm_intent = INTENT_ALIASES.get(raw_intent.lower().strip())

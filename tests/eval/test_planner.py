@@ -154,3 +154,31 @@ async def test_planner_fm08_no_parameter_station_query(planner: QueryPlanner):
     # If observation was mistakenly emitted, parameter_code must not be empty
     if plan.intent == QueryIntent.OBSERVATION:
         assert plan.filters.get("parameter_code") is not None
+
+
+TEMPORAL_CASES = [c for c in FAILURE_MODES.values() if c["id"].startswith("TEMP-")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", TEMPORAL_CASES, ids=[c["id"] for c in TEMPORAL_CASES])
+async def test_planner_temporal_cases(planner: QueryPlanner, case: dict):
+    """Eval: LLM planner extracts structured temporal fields without computing dates or placing dates in filters."""
+    ctx = RequestContext(request_id=f"test_{case['id']}")
+    plan = await planner.plan(case["query"], ctx)
+
+    exp = case["expected_planner"]
+    assert plan.intent == QueryIntent(exp["intent"])
+    assert "start_date" not in plan.filters
+    assert "end_date" not in plan.filters
+    assert "datetime" not in plan.filters
+    assert plan.temporal_error is None
+    assert plan.temporal is not None
+
+    exp_temp = exp["temporal"]
+    for field, exp_val in exp_temp.items():
+        actual = getattr(plan.temporal, field)
+        if field == "start" and case["id"] == "TEMP-03" and actual is None:
+            # Prompt accepts either start='2020' or relative='since', year=2020
+            assert plan.temporal.relative == "since" and str(plan.temporal.year) == "2020"
+        else:
+            assert str(actual) == str(exp_val) or actual == exp_val
