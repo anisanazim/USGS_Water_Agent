@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -19,8 +20,11 @@ from water_agent.metadata.discrete_families import (
     is_mixed_modality,
     resolve_discrete_parameter,
 )
+from water_agent.metadata.registry import daily_registry
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
+
+logger = logging.getLogger(__name__)
 
 LATEST_READINGS_COUNT = 5
 
@@ -218,15 +222,47 @@ async def handle_observation(
         return
 
     # 2. Continuous Daily Values Path (Workflow 5)
-    dt = plan.filters.pop("datetime", None)
+    dropped_keys = []
+    ogc_filters: dict[str, str] = {}
+    for k, v in plan.filters.items():
+        if k in ("time", "datetime"):
+            dropped_keys.append(k)
+        elif daily_registry.has(k):
+            ogc_filters[k] = str(v)
+        else:
+            dropped_keys.append(k)
+    if dropped_keys:
+        logger.debug("Dropped non-queryable keys for Daily OGC API: %s", dropped_keys)
+
+    # Build datetime interval: explicit datetime in plan.filters wins, otherwise resolve from date window
+    explicit_dt = plan.filters.get("datetime")
+    dt = explicit_dt
+    if not dt:
+        try:
+            start_d, end_d = resolve_date_window(plan.filters)
+        except DateParseError as e:
+            await process.log(f"Invalid date filter: {e}")
+            await context.reply(
+                f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
+                data=plan.model_dump(),
+            )
+            return
+
+        if start_d and end_d:
+            dt = f"{start_d}/{end_d}"
+        elif start_d:
+            dt = f"{start_d}/.."
+        elif end_d:
+            dt = f"../{end_d}"
+
     if water_data_fetcher is not None:
         if dt:
             result = await water_data_fetcher.fetch_daily_values(
-                plan.filters, datetime=dt, limit=None, sortby=None
+                ogc_filters, datetime=dt, limit=None, sortby="-time"
             )
         else:
             result = await water_data_fetcher.fetch_daily_values(
-                plan.filters, limit=LATEST_READINGS_COUNT, sortby="-time"
+                ogc_filters, limit=LATEST_READINGS_COUNT, sortby="-time"
             )
     else:
         import sys
@@ -235,11 +271,11 @@ async def handle_observation(
         async with daily_cls() as fetcher:
             if dt:
                 result = await fetcher.fetch_daily_values(
-                    plan.filters, datetime=dt, limit=None, sortby=None
+                    ogc_filters, datetime=dt, limit=None, sortby="-time"
                 )
             else:
                 result = await fetcher.fetch_daily_values(
-                    plan.filters, limit=LATEST_READINGS_COUNT, sortby="-time"
+                    ogc_filters, limit=LATEST_READINGS_COUNT, sortby="-time"
                 )
 
     await process.log(
@@ -271,7 +307,12 @@ async def handle_observation(
         content=json.dumps(
             {"filters": plan.filters, "readings": readings}, indent=2
         ).encode("utf-8"),
-        metadata={"filters": plan.filters, "count": len(readings), "source_urls": result.source_urls},
+        metadata={
+            "filters": plan.filters,
+            "count": len(readings),
+            "source_urls": result.source_urls,
+            "truncated": result.truncated,
+        },
     )
 
     latest = readings[0]
@@ -286,9 +327,26 @@ async def handle_observation(
         loc_parts.append(plan.semantic["state"])
     loc_str = f" in {', '.join(loc_parts)}" if loc_parts else ""
 
-    await context.reply(
-        f"Most recent matching USGS Daily {param_desc} observation{loc_str}: {latest['value']} "
-        f"{latest['unit']} on {latest['time']} at "
-        f"{latest['monitoring_location_id']}.",
-        data={"filters": plan.filters},
-    )
+    if dt:
+        dates = [r["time"] for r in readings if r.get("time")]
+        earliest_date = min(dates) if dates else "unknown"
+        latest_date = max(dates) if dates else "unknown"
+
+        capped_notice = ""
+        if result.truncated:
+            capped_notice = f" (results were capped at {len(readings):,}; specify a narrower date window to retrieve all observations)"
+
+        await context.reply(
+            f"USGS Daily {param_desc} observations{loc_str} for window {dt}: "
+            f"Found {len(readings):,} daily value(s) between {earliest_date} and {latest_date}{capped_notice}. "
+            f"Most recent value: {latest['value']} {latest['unit']} on {latest['time']} at "
+            f"{latest['monitoring_location_id']}.",
+            data={"filters": plan.filters},
+        )
+    else:
+        await context.reply(
+            f"Most recent matching USGS Daily {param_desc} observation{loc_str}: {latest['value']} "
+            f"{latest['unit']} on {latest['time']} at "
+            f"{latest['monitoring_location_id']}.",
+            data={"filters": plan.filters},
+        )

@@ -24,6 +24,7 @@ RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 class PagedResult:
     features: list[dict[str, Any]]
     source_urls: list[str]
+    truncated: bool = False
 
     def to_daily_readings(self) -> list[Any]:
         """Convert raw GeoJSON features to strongly typed ContinuousDailyReading DTOs."""
@@ -201,6 +202,7 @@ class USGSWaterDataFetcher:
         
         current_url = url
         current_params = params.copy()
+        truncated = False
         
         while len(features) < max_records:
             # Mask API key if it ends up in the request URL for logging/provenance
@@ -224,10 +226,16 @@ class USGSWaterDataFetcher:
             if next_link:
                 current_url = next_link
                 current_params = {} # The next link has all params baked in
+                if len(features) >= max_records:
+                    truncated = True
+                    break
             else:
                 break
                 
-        return PagedResult(features=features[:max_records], source_urls=source_urls)
+        if len(features) > max_records:
+            truncated = True
+
+        return PagedResult(features=features[:max_records], source_urls=source_urls, truncated=truncated)
 
     async def fetch_daily_values(
         self,
