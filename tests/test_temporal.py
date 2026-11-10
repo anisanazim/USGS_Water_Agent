@@ -427,3 +427,41 @@ def test_temporal_spec_serializers_and_month_filter():
         label="winter 2022",
     )
     assert winter.needs_month_filter is False
+
+
+def test_resolve_plan_window_contract(caplog):
+    import logging
+    from water_agent.query_planner import QueryPlan
+    from water_agent.temporal import current_date, resolve_plan_window
+
+    assert isinstance(current_date(), date)
+
+    # 1. Empty plan -> None
+    p_empty = QueryPlan(filters={"parameter_code": "00060"})
+    assert resolve_plan_window(p_empty, today=TODAY_DEFAULT) is None
+
+    # 2. temporal_error -> raises TemporalResolutionError
+    p_err = QueryPlan(filters={"parameter_code": "00060"}, temporal_error="Month 13 out of range")
+    with pytest.raises(TemporalResolutionError, match="Month 13 out of range"):
+        resolve_plan_window(p_err, today=TODAY_DEFAULT)
+
+    # 3. Legacy fallback -> TemporalSpec with empty months
+    p_leg = QueryPlan(filters={"start_date": "2020-01-01", "end_date": "2023-07-31"})
+    spec_leg = resolve_plan_window(p_leg, today=TODAY_DEFAULT)
+    assert spec_leg is not None
+    assert spec_leg.start == date(2020, 1, 1)
+    assert spec_leg.end == date(2023, 7, 31)
+    assert spec_leg.months == frozenset()
+    assert spec_leg.label == "2020-01-01 to 2023-07-31"
+
+    # 4. Temporal + conflicting legacy -> temporal wins & logs INFO
+    p_both = QueryPlan(
+        filters={"start_date": "2018-01-01", "end_date": "2019-12-31"},
+        temporal=TemporalRequest(phrase="in 2021", start="2021", end="2021"),
+    )
+    with caplog.at_level(logging.INFO, logger="water_agent.temporal"):
+        spec_both = resolve_plan_window(p_both, today=TODAY_DEFAULT)
+    assert spec_both is not None
+    assert spec_both.start == date(2021, 1, 1)
+    assert spec_both.end == date(2021, 12, 31)
+    assert any("using plan.temporal" in r.message for r in caplog.records)

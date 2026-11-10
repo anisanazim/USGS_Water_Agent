@@ -7,12 +7,17 @@ deterministically here using an injected ``today`` date.
 from __future__ import annotations
 
 import calendar
+import logging
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
+
+from water_agent.fetchers.samples_fetcher import DateParseError, resolve_date_window
+
+logger = logging.getLogger(__name__)
 
 MIN_YEAR = 1800
 
@@ -104,6 +109,22 @@ class TemporalSpec:
         if self.end is not None:
             return f"../{self.end.isoformat()}"
         return None
+
+    def to_metadata(self) -> dict[str, Any]:
+        """Serialize resolved window for artifact payload and metadata."""
+        return {
+            "phrase": self.phrase,
+            "start": self.start.isoformat() if self.start is not None else None,
+            "end": self.end.isoformat() if self.end is not None else None,
+            "months": sorted(self.months),
+            "label": self.label,
+        }
+
+    def format_interpretation(self) -> str:
+        """User-facing sentence stating how a temporal phrase or date filter was interpreted."""
+        if self.phrase:
+            return f"Interpreted '{self.phrase}' as {self.label}."
+        return f"Interpreted date filter as {self.label}."
 
 
 def _clean_opt_str(value: Any) -> str | None:
@@ -623,3 +644,69 @@ def resolve_temporal(req: TemporalRequest, today: date) -> TemporalSpec:
             f"Could not resolve a date range from '{phrase}'."
         )
     raise TemporalResolutionError("Empty temporal request.")
+
+
+def current_date() -> date:
+    """Return the current UTC calendar date. Handlers invoke this once per request."""
+    return datetime.now(timezone.utc).date()
+
+
+def resolve_plan_window(plan: Any, today: date | None = None) -> TemporalSpec | None:
+    """Resolve the temporal window from `plan.temporal` or fall back to legacy date filters.
+
+    - If `plan.temporal_error` is set, raises TemporalResolutionError asking for a clearer date.
+    - If `plan.temporal` has any field set, resolves it with `today` (temporal wins over
+      conflicting legacy filters, logging at INFO).
+    - Otherwise falls back to legacy filters (`start_date` / `activityStartDate*`) via
+      `resolve_date_window`. Returns None when neither temporal nor legacy dates exist.
+    """
+    if today is None:
+        today = current_date()
+
+    temporal_error = getattr(plan, "temporal_error", None)
+    if temporal_error:
+        raise TemporalResolutionError(
+            f"I could not understand the date period ({temporal_error}). "
+            "Please provide a clearer date range (for example, '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022')."
+        )
+
+    filters = getattr(plan, "filters", None) or {}
+    req = getattr(plan, "temporal", None)
+
+    if req is not None and has_temporal_fields(req):
+        spec = resolve_temporal(req, today=today)
+        spec_start_iso = spec.start.isoformat() if spec.start is not None else None
+        spec_end_iso = spec.end.isoformat() if spec.end is not None else None
+
+        try:
+            leg_start, leg_end = resolve_date_window(filters)
+        except DateParseError:
+            logger.info(
+                "Both plan.temporal (%s) and legacy date filter are present and disagree; using plan.temporal.",
+                spec.label,
+            )
+        else:
+            if (leg_start is not None or leg_end is not None) and (
+                leg_start != spec_start_iso or leg_end != spec_end_iso
+            ):
+                logger.info(
+                    "Both plan.temporal (%s) and legacy filter dates (%s to %s) are present and disagree; using plan.temporal.",
+                    spec.label,
+                    leg_start,
+                    leg_end,
+                )
+        return spec
+
+    leg_start, leg_end = resolve_date_window(filters)
+    if leg_start is None and leg_end is None:
+        return None
+
+    start_d = date.fromisoformat(leg_start) if leg_start else None
+    end_d = date.fromisoformat(leg_end) if leg_end else None
+    return TemporalSpec(
+        start=start_d,
+        end=end_d,
+        months=frozenset(),
+        label=_format_range_label(start_d, end_d),
+        phrase=None,
+    )
