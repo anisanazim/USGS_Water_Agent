@@ -8,7 +8,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, AsyncIterator
 
 import httpx
@@ -70,21 +70,70 @@ class DiscreteFetchResult:
         return [DiscreteObservationRecord(**rec) for rec in self.records]
 
 
+class DateParseError(ValueError):
+    """Raised when a date string cannot be parsed or is an invalid calendar date."""
+
+    def __init__(self, value: Any, message: str | None = None):
+        self.value = value
+        msg = message or f"Invalid date: '{value}'. Expected format YYYY-MM-DD or M/D/YYYY."
+        super().__init__(msg)
+
+
 def to_iso_date(date_str: str | None) -> str | None:
-    """Normalize date strings (YYYY-MM-DD or M/D/YYYY) to ISO YYYY-MM-DD."""
-    if not date_str:
+    """Normalize date strings (YYYY-MM-DD or M/D/YYYY) to ISO YYYY-MM-DD.
+
+    Accepts only YYYY-MM-DD and M/D/YYYY, validating each as a real calendar date.
+    Returns ISO 'YYYY-MM-DD' string. Raises DateParseError on invalid format or date.
+    """
+    if date_str is None:
         return None
-    date_str = date_str.strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
-        return date_str
-    parts = date_str.split("/")
-    if len(parts) == 3:
+    s = str(date_str).strip()
+    if not s:
+        return None
+
+    # Check YYYY-MM-DD
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         try:
-            m, d, y = parts
-            return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
-        except (ValueError, TypeError):
-            return date_str
-    return date_str
+            parsed = date.fromisoformat(s)
+            return parsed.isoformat()
+        except ValueError:
+            raise DateParseError(date_str) from None
+
+    # Check M/D/YYYY or MM/DD/YYYY
+    if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", s):
+        try:
+            parts = s.split("/")
+            m, d, y = int(parts[0]), int(parts[1]), int(parts[2])
+            parsed = date(y, m, d)
+            return parsed.isoformat()
+        except ValueError:
+            raise DateParseError(date_str) from None
+
+    raise DateParseError(date_str)
+
+
+def resolve_date_window(filters: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Read start and end date bounds from filters and normalize to ISO YYYY-MM-DD.
+
+    Precedence:
+      start: start_date | activityStartDateLower
+      end:   end_date   | activityStartDateUpper
+
+    Raises DateParseError if dates are unparseable, invalid calendar dates, or start > end.
+    """
+    raw_start = filters.get("start_date") or filters.get("activityStartDateLower")
+    raw_end = filters.get("end_date") or filters.get("activityStartDateUpper")
+
+    start = to_iso_date(raw_start)
+    end = to_iso_date(raw_end)
+
+    if start and end and start > end:
+        raise DateParseError(
+            f"{start} > {end}",
+            message=f"Start date '{start}' cannot be after end date '{end}'.",
+        )
+
+    return start, end
 
 
 class USGSSamplesFetcher:
@@ -456,7 +505,10 @@ class USGSSamplesFetcher:
     def _project_result_row(self, row: dict[str, str]) -> dict[str, Any]:
         """Project result CSV row to standard schema and ISO date format."""
         raw_date = row.get("Activity_StartDate") or row.get("ActivityStartDate")
-        iso_date = to_iso_date(raw_date)
+        try:
+            iso_date = to_iso_date(raw_date)
+        except DateParseError:
+            iso_date = None
 
         raw_val = row.get("Result_Measure") or row.get("ResultMeasureValue")
         val = None

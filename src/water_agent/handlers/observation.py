@@ -7,7 +7,12 @@ from typing import Any
 
 from ichatbio.agent_response import ResponseContext
 from usgs_water_data import USGSWaterDataFetcher
-from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher, to_iso_date
+from water_agent.fetchers.samples_fetcher import (
+    DateParseError,
+    USGSSamplesFetcher,
+    resolve_date_window,
+    to_iso_date,
+)
 from water_agent.handlers.common import format_date_for_display
 from water_agent.metadata.discrete_families import (
     get_parameter,
@@ -98,14 +103,20 @@ async def handle_observation(
             samples_params["countyFips"] = f"US:{st_num}:{co_num}"
         if plan.filters.get("monitoring_location_id"):
             samples_params["monitoringLocationIdentifier"] = plan.filters["monitoring_location_id"]
-        if plan.filters.get("start_date") or plan.filters.get("activityStartDateLower"):
-            samples_params["activityStartDateLower"] = to_iso_date(
-                plan.filters.get("start_date") or plan.filters.get("activityStartDateLower")
+        try:
+            start_date, end_date = resolve_date_window(plan.filters)
+        except DateParseError as e:
+            await process.log(f"Invalid date filter: {e}")
+            await context.reply(
+                f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
+                data=plan.model_dump(),
             )
-        if plan.filters.get("end_date") or plan.filters.get("activityStartDateUpper"):
-            samples_params["activityStartDateUpper"] = to_iso_date(
-                plan.filters.get("end_date") or plan.filters.get("activityStartDateUpper")
-            )
+            return
+
+        if start_date:
+            samples_params["activityStartDateLower"] = start_date
+        if end_date:
+            samples_params["activityStartDateUpper"] = end_date
 
         if samples_fetcher is not None:
             samples_res = await samples_fetcher.fetch_results(

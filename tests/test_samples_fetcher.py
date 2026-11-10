@@ -3,10 +3,13 @@ import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from water_agent.fetchers.samples_fetcher import (
-    USGSSamplesFetcher,
+    DateParseError,
+    SamplesError,
+    SamplesOverflowError,
     SamplesRateLimitError,
     SamplesValidationError,
-    SamplesOverflowError,
+    USGSSamplesFetcher,
+    resolve_date_window,
     to_iso_date,
 )
 from water_agent.results import RequestContext
@@ -14,10 +17,44 @@ from water_agent.results import RequestContext
 
 def test_to_iso_date():
     assert to_iso_date("2023-05-15") == "2023-05-15"
+    assert to_iso_date("2020-01-05") == "2020-01-05"
     assert to_iso_date("5/15/2023") == "2023-05-15"
+    assert to_iso_date("1/5/2020") == "2020-01-05"
     assert to_iso_date("01/02/1995") == "1995-01-02"
     assert to_iso_date(None) is None
     assert to_iso_date("") is None
+
+    # Invalid dates raise DateParseError
+    for invalid in ["January 2020", "2023-02-30", "13/1/2020", "yesterday", "invalid-date"]:
+        with pytest.raises(DateParseError) as exc_info:
+            to_iso_date(invalid)
+        assert exc_info.value.value == invalid
+
+
+def test_resolve_date_window():
+    # Valid ISO bounds
+    assert resolve_date_window({"start_date": "2020-01-01", "end_date": "2023-07-31"}) == (
+        "2020-01-01",
+        "2023-07-31",
+    )
+
+    # Legacy activityStartDate* keys
+    assert resolve_date_window(
+        {"activityStartDateLower": "1/5/2020", "activityStartDateUpper": "2021-12-31"}
+    ) == ("2020-01-05", "2021-12-31")
+
+    # None bounds
+    assert resolve_date_window({}) == (None, None)
+    assert resolve_date_window({"start_date": "2020-01-01"}) == ("2020-01-01", None)
+    assert resolve_date_window({"end_date": "2020-01-01"}) == (None, "2020-01-01")
+
+    # start > end raises DateParseError
+    with pytest.raises(DateParseError):
+        resolve_date_window({"start_date": "2023-07-31", "end_date": "2020-01-01"})
+
+    # Invalid start or end date raises DateParseError
+    with pytest.raises(DateParseError):
+        resolve_date_window({"start_date": "January 2020"})
 
 
 @pytest.mark.asyncio
@@ -448,4 +485,61 @@ async def test_repeated_parameter_union_equals_per_pcode_loop_union_phosphorus()
     repeated_union_ids = {r["location_id"] for r in res.records}
     assert repeated_union_ids == loop_union_ids
     assert repeated_union_ids == {"USGS-1", "USGS-2", "USGS-3", "USGS-4", "USGS-5", "USGS-6"}
+
+
+@pytest.mark.asyncio
+async def test_observation_discrete_path_unparseable_date_fails_closed():
+    """Unparseable date in observation discrete path replies with error and makes no fetch."""
+    from water_agent.handlers.observation import handle_observation
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock(spec=USGSSamplesFetcher)
+
+    plan = QueryPlan(
+        intent="observation",
+        modality="discrete",
+        filters={
+            "parameter_code": "00915",
+            "monitoring_location_id": "USGS-0423205010",
+            "start_date": "January 2020",
+        },
+    )
+    ctx = RequestContext(request_id="test-err")
+
+    await handle_observation(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        samples_fetcher=mock_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "January 2020" in reply_msg
+    assert "YYYY-MM-DD" in reply_msg
+    assert not mock_fetcher.fetch_results.called
+
+
+@pytest.mark.asyncio
+async def test_discrete_query_tool_unparseable_date():
+    """DiscreteQueryTool returns error shape when date is unparseable and makes no fetch."""
+    from water_agent.tools.discrete_query import DiscreteQueryTool
+    mock_fetcher = AsyncMock(spec=USGSSamplesFetcher)
+    mock_resolver = MagicMock()
+    tool = DiscreteQueryTool(fetcher=mock_fetcher, resolver=mock_resolver)
+
+    res = await tool.query_results(parameter="00915", start_date="2023-02-30")
+    assert res["status"] == "error"
+    assert "2023-02-30" in res["error"]
+    assert "YYYY-MM-DD" in res["error"]
+    assert not mock_fetcher.fetch_results.called
 

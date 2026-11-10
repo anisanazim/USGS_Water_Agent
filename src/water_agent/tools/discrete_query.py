@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher, to_iso_date
+from water_agent.fetchers.samples_fetcher import (
+    DateParseError,
+    USGSSamplesFetcher,
+    resolve_date_window,
+    to_iso_date,
+)
 from water_agent.metadata.discrete_families import (
     get_family_for_pcode,
     get_parameter,
@@ -81,10 +86,21 @@ class DiscreteQueryTool:
                 sid = f"USGS-{sid}"
             params["monitoringLocationIdentifier"] = sid
 
-        if start_date:
-            params["activityStartDateLower"] = to_iso_date(start_date)
-        if end_date:
-            params["activityStartDateUpper"] = to_iso_date(end_date)
+        if start_date or end_date:
+            try:
+                s_norm, e_norm = resolve_date_window({
+                    "start_date": start_date,
+                    "end_date": end_date,
+                })
+                if s_norm:
+                    params["activityStartDateLower"] = s_norm
+                if e_norm:
+                    params["activityStartDateUpper"] = e_norm
+            except DateParseError as e:
+                return {
+                    "status": "error",
+                    "error": f"Invalid date: '{e.value}'. Dates must be specified in YYYY-MM-DD or M/D/YYYY format (e.g. '2023-01-15').",
+                }
 
         # 3. Fetch from Samples API
         fetch_res = await self.fetcher.fetch_results(
