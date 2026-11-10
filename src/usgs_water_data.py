@@ -196,7 +196,13 @@ class USGSWaterDataFetcher:
                 f"USGS API request failed after {MAX_ATTEMPTS} attempts: {last_exc}"
             ) from last_exc
 
-    async def _fetch_all_pages(self, url: str, params: dict[str, Any], max_records: int) -> PagedResult:
+    async def _fetch_all_pages(
+        self,
+        url: str,
+        params: dict[str, Any],
+        max_records: int,
+        fixed_limit: bool = False,
+    ) -> PagedResult:
         features: list[dict[str, Any]] = []
         source_urls: list[str] = []
         
@@ -227,12 +233,13 @@ class USGSWaterDataFetcher:
                 current_url = next_link
                 current_params = {} # The next link has all params baked in
                 if len(features) >= max_records:
-                    truncated = True
+                    if not fixed_limit:
+                        truncated = True
                     break
             else:
                 break
                 
-        if len(features) > max_records:
+        if len(features) > max_records and not fixed_limit:
             truncated = True
 
         return PagedResult(features=features[:max_records], source_urls=source_urls, truncated=truncated)
@@ -269,8 +276,9 @@ class USGSWaterDataFetcher:
             params["sortby"] = sortby
             
         max_records = min(limit, 10000) if limit is not None else 10000
+        fixed_limit = limit is not None and limit <= 10000
         logger.debug("Fetching daily values up to %d records", max_records)
-        return await self._fetch_all_pages(url, params, max_records)
+        return await self._fetch_all_pages(url, params, max_records, fixed_limit=fixed_limit)
 
     async def fetch_time_series_metadata(self, filters: dict[str, str], limit: int = 1000) -> PagedResult:
         url = f"{self.base_url}/collections/time-series-metadata/items"

@@ -15,9 +15,10 @@ from water_agent.fetchers.samples_fetcher import (
 )
 from water_agent.metadata.discrete_families import (
     DISCRETE_FAMILIES,
-    INORGANIC_CARBON_PATTERN,
+    INORGANIC_CARBON_UNSUPPORTED_MSG,
     get_family_for_pcode,
     get_parameter,
+    is_inorganic_carbon_request,
     resolve_discrete_parameter,
 )
 from water_agent.query_planner import QueryPlan
@@ -54,18 +55,16 @@ def extract_pcodes_and_family(
     plan: QueryPlan, request: str
 ) -> tuple[list[str], str, list[dict[str, str]]]:
     """Extract constituent parameter codes, family display name, and parameter metadata."""
+    # Guard: inorganic carbon (including DIC/PIC) is not supported
+    if is_inorganic_carbon_request(plan.filters, plan.semantic, request):
+        return [], "inorganic carbon", []
+
     raw_pcode = (
         plan.filters.get("parameter_code")
         or plan.filters.get("parameters")
         or plan.semantic.get("parameter")
         or ""
     )
-
-    # Guard: inorganic carbon (including DIC/PIC) is not supported
-    if INORGANIC_CARBON_PATTERN.search(request) or (
-        isinstance(raw_pcode, str) and INORGANIC_CARBON_PATTERN.search(raw_pcode)
-    ):
-        return [], "inorganic carbon", []
 
     pcodes: list[str] = []
     family_name: str = ""
@@ -171,19 +170,8 @@ async def handle_parameter_count(
     counts or actual values.
     """
     # Guard: inorganic carbon (including DIC/PIC) is not supported
-    raw_pcode = (
-        plan.filters.get("parameter_code")
-        or plan.filters.get("parameters")
-        or plan.semantic.get("parameter")
-        or ""
-    )
-    if INORGANIC_CARBON_PATTERN.search(request) or (
-        isinstance(raw_pcode, str) and INORGANIC_CARBON_PATTERN.search(raw_pcode)
-    ):
-        await context.reply(
-            "Inorganic carbon (including DIC and PIC) is not supported. "
-            "Supported carbon parameters are Total Organic Carbon (00680) and Dissolved Organic Carbon (00681)."
-        )
+    if is_inorganic_carbon_request(plan.filters, plan.semantic, request):
+        await context.reply(INORGANIC_CARBON_UNSUPPORTED_MSG)
         return
 
     station_id = extract_station_id(plan, request)

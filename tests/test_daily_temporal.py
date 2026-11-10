@@ -191,3 +191,236 @@ async def test_continuous_observation_truncated_reply_and_metadata():
     # Artifact metadata must contain truncated=True
     meta = mock_process.create_artifact.call_args[1]["metadata"]
     assert meta["truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_latest_n_with_fixed_limit_not_marked_truncated():
+    """limit=5 returning 5 features with a next link must have truncated=False in result and artifact."""
+    fetcher = USGSWaterDataFetcher()
+    recorded_params = []
+
+    async def mock_request(url, params):
+        recorded_params.append(params)
+        return {
+            "features": [
+                {
+                    "properties": {
+                        "monitoring_location_id": "USGS-02087500",
+                        "parameter_code": "00060",
+                        "value": 100.0 + i,
+                        "unit_of_measure": "ft3/s",
+                        "time": f"2023-07-0{5 - i}",
+                    }
+                }
+                for i in range(5)
+            ],
+            "links": [{"rel": "next", "href": "https://api.test/collections/daily/items?offset=5"}],
+        }
+
+    fetcher._request = mock_request
+
+    # 1. Direct fetch_daily_values with limit=5
+    res = await fetcher.fetch_daily_values(
+        {"monitoring_location_id": "USGS-02087500", "parameter_code": "00060"},
+        limit=5,
+        sortby="-time",
+    )
+    assert len(res.features) == 5
+    assert res.truncated is False
+    assert recorded_params[0]["parameter_code"] == "00060"
+
+    # 2. Through handle_observation latest-N path (no dates -> limit=5)
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    plan = QueryPlan(
+        intent="observation",
+        modality="continuous",
+        filters={
+            "parameter_code": "00060",
+            "monitoring_location_id": "USGS-02087500",
+        },
+        semantic={"parameter": "streamflow"},
+    )
+    ctx = RequestContext(request_id="test-latest-n")
+
+    await handle_observation(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        water_data_fetcher=fetcher,
+    )
+
+    reply_text = mock_context.reply.call_args[0][0]
+    assert "Most recent matching USGS Daily" in reply_text
+    assert "capped" not in reply_text.lower()
+    meta = mock_process.create_artifact.call_args[1]["metadata"]
+    assert meta["truncated"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filters,expected_dt",
+    [
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "start_date": "2020-01-01",
+            },
+            "2020-01-01/..",
+        ),
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "end_date": "2023-07-31",
+            },
+            "../2023-07-31",
+        ),
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "datetime": "2020-01-01/2023-07-31",
+                "start_date": "2019-01-01",
+            },
+            "2020-01-01/2023-07-31",
+        ),
+    ],
+)
+async def test_daily_path_open_ended_and_explicit_valid_datetime(filters, expected_dt):
+    """Daily path builds 'start/..' and '../end', honours valid explicit datetime, and passes parameter_code in OGC params."""
+    fetcher = USGSWaterDataFetcher()
+    recorded_http_params = []
+
+    async def mock_request(url, params):
+        recorded_http_params.append(params)
+        return {
+            "features": [
+                {
+                    "properties": {
+                        "monitoring_location_id": "USGS-02087500",
+                        "parameter_code": "00060",
+                        "value": 150.0,
+                        "unit_of_measure": "ft3/s",
+                        "time": "2023-07-31",
+                    }
+                }
+            ],
+            "links": [],
+        }
+
+    fetcher._request = mock_request
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    plan = QueryPlan(
+        intent="observation",
+        modality="continuous",
+        filters=filters,
+        semantic={"parameter": "streamflow"},
+    )
+    ctx = RequestContext(request_id="test-daily-intervals")
+
+    await handle_observation(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        water_data_fetcher=fetcher,
+    )
+
+    assert len(recorded_http_params) == 1
+    http_params = recorded_http_params[0]
+    assert http_params["parameter_code"] == "00060"
+    assert http_params["monitoring_location_id"] == "USGS-02087500"
+    assert http_params["datetime"] == expected_dt
+    assert http_params["sortby"] == "-time"
+    assert "start_date" not in http_params
+    assert "end_date" not in http_params
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filters,expected_bad_token",
+    [
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "start_date": "January 2020",
+            },
+            "January 2020",
+        ),
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "end_date": "2023-02-30",
+            },
+            "2023-02-30",
+        ),
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "datetime": "bad/2023-07-31",
+            },
+            "bad",
+        ),
+        (
+            {
+                "parameter_code": "00060",
+                "monitoring_location_id": "USGS-02087500",
+                "datetime": "January 2020",
+            },
+            "January 2020",
+        ),
+    ],
+)
+async def test_daily_path_invalid_date_or_explicit_datetime_fails_closed(filters, expected_bad_token):
+    """Invalid start/end dates or malformed explicit datetime in daily path reply with error and make zero fetches."""
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock(spec=USGSWaterDataFetcher)
+
+    plan = QueryPlan(
+        intent="observation",
+        modality="continuous",
+        filters=filters,
+        semantic={"parameter": "streamflow"},
+    )
+    ctx = RequestContext(request_id="test-daily-invalid-date")
+
+    await handle_observation(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        water_data_fetcher=mock_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert expected_bad_token in reply_msg
+    assert "YYYY-MM-DD" in reply_msg
+    assert not mock_fetcher.fetch_daily_values.called

@@ -132,7 +132,7 @@ def is_mixed_modality(family_or_pcode: str) -> bool:
 @dataclass(frozen=True)
 class DiscreteResolutionResult:
     status: Literal["resolved", "clarification_needed", "not_found"]
-    query_type: Literal["spatial", "value", "count"]
+    query_type: Literal["spatial", "value", "count", "unsupported"]
     family: DiscreteFamily | None
     pcodes: list[str]
     candidates: list[dict[str, Any]] | None = None
@@ -228,6 +228,31 @@ def search_catalog_characteristics(term: str, limit: int = 15) -> list[dict[str,
 
 
 INORGANIC_CARBON_PATTERN = re.compile(r"\b(inorganic\s+carbon|dic|pic)\b", re.IGNORECASE)
+INORGANIC_CARBON_UNSUPPORTED_MSG = (
+    "Inorganic carbon (including DIC and PIC) is not supported. "
+    "Supported carbon parameters are Total Organic Carbon (00680) and Dissolved Organic Carbon (00681)."
+)
+
+
+def is_inorganic_carbon_request(
+    filters: dict[str, Any] | None = None,
+    semantic: dict[str, Any] | None = None,
+    request: str = "",
+) -> bool:
+    """Return True if any parameter filter, semantic value, or request mentions inorganic carbon, DIC, or PIC."""
+    candidates: list[str] = []
+    if request:
+        candidates.append(request)
+    if filters:
+        for key in ("parameter_code", "parameters", "parameter"):
+            val = filters.get(key)
+            if val is not None:
+                candidates.append(str(val))
+    if semantic:
+        for val in semantic.values():
+            if val is not None:
+                candidates.append(str(val))
+    return any(INORGANIC_CARBON_PATTERN.search(text) for text in candidates)
 
 
 def resolve_discrete_parameter(
@@ -249,10 +274,7 @@ def resolve_discrete_parameter(
             family=None,
             pcodes=[],
             candidates=[],
-            message=(
-                "Inorganic carbon (including DIC and PIC) is not supported. "
-                "Supported carbon parameters are Total Organic Carbon (00680) and Dissolved Organic Carbon (00681)."
-            ),
+            message=INORGANIC_CARBON_UNSUPPORTED_MSG,
         )
 
     # Find matching family: priority 1 is exact family name or exact pcode

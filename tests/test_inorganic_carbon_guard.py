@@ -150,6 +150,53 @@ async def test_handle_observation_inorganic_carbon_no_fetch():
     assert "Inorganic carbon" in reply_msg
     assert "00680" in reply_msg
     assert "00681" in reply_msg
-    assert not mock_samples_fetcher.get_results.called
+    assert not mock_samples_fetcher.fetch_results.called
+    assert not mock_water_data_fetcher.fetch_daily_values.called
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filters,semantic",
+    [
+        ({"parameter_code": "carbon"}, {"parameter": "inorganic carbon"}),
+        ({"parameter_code": "carbon", "parameters": ["DIC"]}, {"parameter": "carbon"}),
+        ({"parameter_code": "00680"}, {"parameter": "carbon", "note": "check PIC values"}),
+    ],
+)
+async def test_handle_observation_inorganic_carbon_checks_all_fields(filters, semantic):
+    """Observation guard checks all parameter filter keys and every semantic value, not just first truthy."""
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_samples_fetcher = AsyncMock()
+    mock_water_data_fetcher = AsyncMock()
+
+    plan = QueryPlan(
+        intent="observation",
+        filters=filters,
+        semantic=semantic,
+    )
+    ctx = RequestContext(request_id="test-inorganic-carbon-all-fields")
+
+    await handle_observation(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        samples_fetcher=mock_samples_fetcher,
+        water_data_fetcher=mock_water_data_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "Inorganic carbon" in reply_msg
+    assert "00680" in reply_msg
+    assert "00681" in reply_msg
+    assert not mock_samples_fetcher.fetch_results.called
     assert not mock_water_data_fetcher.fetch_daily_values.called
 

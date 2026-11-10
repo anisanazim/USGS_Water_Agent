@@ -136,6 +136,37 @@ def resolve_date_window(filters: dict[str, Any]) -> tuple[str | None, str | None
     return start, end
 
 
+def validate_datetime_interval(raw_dt: Any) -> str:
+    """Validate an OGC datetime interval 'A/B' where each side is '..' or a valid date.
+
+    Each non-'..' side is normalized via to_iso_date(). Raises DateParseError if the
+    interval is malformed, contains invalid dates, has both sides as '..', or start > end.
+    """
+    if not isinstance(raw_dt, str):
+        raise DateParseError(raw_dt)
+    s = raw_dt.strip()
+    parts = s.split("/")
+    if len(parts) != 2:
+        raise DateParseError(raw_dt)
+
+    left_raw, right_raw = parts[0].strip(), parts[1].strip()
+    if not left_raw or not right_raw or (left_raw == ".." and right_raw == ".."):
+        raise DateParseError(raw_dt)
+
+    left = ".." if left_raw == ".." else to_iso_date(left_raw)
+    right = ".." if right_raw == ".." else to_iso_date(right_raw)
+    if left is None or right is None:
+        raise DateParseError(raw_dt)
+
+    if left != ".." and right != ".." and left > right:
+        raise DateParseError(
+            raw_dt,
+            message=f"Start date '{left}' cannot be after end date '{right}'.",
+        )
+
+    return f"{left}/{right}"
+
+
 class USGSSamplesFetcher:
     """Dedicated fetcher for discrete water-quality data from the USGS Samples API.
     
@@ -470,6 +501,7 @@ class USGSSamplesFetcher:
     ) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         header: list[str] | None = None
+        date_error_counts: dict[str, int] = {"date_parse_errors": 0}
 
         async with self._ensure_client().stream("GET", url, params=params, timeout=self.timeout) as resp:
             if resp.status_code == 429:
@@ -497,18 +529,31 @@ class USGSSamplesFetcher:
                     continue
 
                 row_dict = dict(zip(header, row))
-                projected = self._project_result_row(row_dict)
+                projected = self._project_result_row(row_dict, error_counts=date_error_counts)
                 records.append(projected)
+
+        if date_error_counts["date_parse_errors"] > 0:
+            logger.warning(
+                "Dropped unparseable activity date on %d discrete result row(s) during fetch from %s",
+                date_error_counts["date_parse_errors"],
+                url,
+            )
 
         return records
 
-    def _project_result_row(self, row: dict[str, str]) -> dict[str, Any]:
+    def _project_result_row(
+        self,
+        row: dict[str, str],
+        error_counts: dict[str, int] | None = None,
+    ) -> dict[str, Any]:
         """Project result CSV row to standard schema and ISO date format."""
         raw_date = row.get("Activity_StartDate") or row.get("ActivityStartDate")
         try:
             iso_date = to_iso_date(raw_date)
         except DateParseError:
             iso_date = None
+            if error_counts is not None:
+                error_counts["date_parse_errors"] = error_counts.get("date_parse_errors", 0) + 1
 
         raw_val = row.get("Result_Measure") or row.get("ResultMeasureValue")
         val = None

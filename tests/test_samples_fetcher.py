@@ -543,3 +543,78 @@ async def test_discrete_query_tool_unparseable_date():
     assert "YYYY-MM-DD" in res["error"]
     assert not mock_fetcher.fetch_results.called
 
+
+def test_validate_datetime_interval():
+    """validate_datetime_interval accepts valid ISO intervals and '..' bounds, fails closed otherwise."""
+    from water_agent.fetchers.samples_fetcher import DateParseError, validate_datetime_interval
+
+    assert validate_datetime_interval("2020-01-01/2023-07-31") == "2020-01-01/2023-07-31"
+    assert validate_datetime_interval("2020-01-01/..") == "2020-01-01/.."
+    assert validate_datetime_interval("../2023-07-31") == "../2023-07-31"
+
+    for invalid in [
+        "January 2020",
+        "2020-01-01",
+        "../..",
+        "/2020-01-01",
+        "2020-01-01/",
+        "bad/2020-01-01",
+        "2023-02-30/2023-03-01",
+        "2023-07-31/2020-01-01",
+        "2020-01-01/2021-01-01/2022-01-01",
+        123,
+    ]:
+        with pytest.raises(DateParseError):
+            validate_datetime_interval(invalid)
+
+
+@pytest.mark.asyncio
+async def test_stream_project_logs_single_warning_for_unparseable_row_dates(caplog):
+    """_project_result_row counts date parse failures and logs a warning once per fetch."""
+    import logging
+
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    count_resp = httpx.Response(
+        status_code=200,
+        json={"recordCount": 4},
+        headers={"x-ratelimit-remaining": "3990", "x-ratelimit-limit": "4000"},
+        request=httpx.Request("GET", "https://api.waterdata.usgs.gov/samples-data/results/count"),
+    )
+    mock_client.get.return_value = count_resp
+    mock_client.build_request.return_value = httpx.Request(
+        "GET", "https://api.waterdata.usgs.gov/samples-data/results/narrow"
+    )
+
+    csv_data = [
+        "Activity_StartDate,Activity_StartTime,Result_Measure,Result_MeasureUnit,USGSpcode,Result_Characteristic,Location_Identifier,Location_Name\n",
+        "bad-date,10:00:00,12.5,mg/l,00915,Calcium,USGS-02087500,Neuse\n",
+        "2023-02-30,10:30:00,13.0,mg/l,00915,Calcium,USGS-02087500,Neuse\n",
+        ",11:00:00,14.0,mg/l,00915,Calcium,USGS-02087500,Neuse\n",
+        "2021-03-01,11:30:00,15.0,mg/l,00915,Calcium,USGS-02087500,Neuse\n",
+    ]
+    mock_stream_resp = AsyncMock()
+    mock_stream_resp.status_code = 200
+    mock_stream_resp.raise_for_status = MagicMock()
+    mock_stream_resp.headers = {"x-ratelimit-remaining": "3989", "x-ratelimit-limit": "4000"}
+
+    async def aiter_lines():
+        for line in csv_data:
+            yield line
+
+    mock_stream_resp.aiter_lines = aiter_lines
+    mock_client.stream.return_value.__aenter__.return_value = mock_stream_resp
+
+    fetcher = USGSSamplesFetcher(client=mock_client)
+    with caplog.at_level(logging.WARNING, logger="water_agent.fetchers.samples_fetcher"):
+        res = await fetcher.fetch_results({"stateFips": "US:37", "usgsPCode": "00915"})
+
+    assert len(res.records) == 4
+    assert res.records[0]["activity_date"] is None
+    assert res.records[1]["activity_date"] is None
+    assert res.records[2]["activity_date"] is None
+    assert res.records[3]["activity_date"] == "2021-03-01"
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING and "unparseable activity date" in r.message.lower()]
+    assert len(warnings) == 1
+    assert "2" in warnings[0].message
+

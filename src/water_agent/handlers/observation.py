@@ -12,11 +12,13 @@ from water_agent.fetchers.samples_fetcher import (
     DateParseError,
     USGSSamplesFetcher,
     resolve_date_window,
-    to_iso_date,
+    validate_datetime_interval,
 )
 from water_agent.handlers.common import format_date_for_display
 from water_agent.metadata.discrete_families import (
+    INORGANIC_CARBON_UNSUPPORTED_MSG,
     get_parameter,
+    is_inorganic_carbon_request,
     is_mixed_modality,
     resolve_discrete_parameter,
 )
@@ -51,6 +53,10 @@ async def handle_observation(
     water_data_fetcher: USGSWaterDataFetcher | None = None,
 ) -> None:
     """Handle Workflow 4 (Discrete Observation Values) and Workflow 5 (Continuous Daily Values)."""
+    if is_inorganic_carbon_request(plan.filters, plan.semantic):
+        await context.reply(INORGANIC_CARBON_UNSUPPORTED_MSG, data=plan.model_dump())
+        return
+
     if not plan.filters:
         await process.log("No observation filters could be resolved.")
         await context.reply(
@@ -64,6 +70,7 @@ async def handle_observation(
     param_code = plan.filters.get("parameter_code")
     query_codes: list[str] = []
     family_obj = None
+    discrete_param = None
 
     # Check if param_code is an exact 5-digit pcode
     is_exact_pcode = bool(
@@ -237,26 +244,28 @@ async def handle_observation(
     if dropped_keys:
         logger.debug("Dropped non-queryable keys for Daily OGC API: %s", dropped_keys)
 
-    # Build datetime interval: explicit datetime in plan.filters wins, otherwise resolve from date window
+    # Build datetime interval: explicit datetime in plan.filters wins (validated as A/B), otherwise resolve from date window
     explicit_dt = plan.filters.get("datetime")
-    dt = explicit_dt
-    if not dt:
-        try:
+    try:
+        if explicit_dt not in (None, ""):
+            dt: str | None = validate_datetime_interval(explicit_dt)
+        else:
             start_d, end_d = resolve_date_window(plan.filters)
-        except DateParseError as e:
-            await process.log(f"Invalid date filter: {e}")
-            await context.reply(
-                f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
-                data=plan.model_dump(),
-            )
-            return
-
-        if start_d and end_d:
-            dt = f"{start_d}/{end_d}"
-        elif start_d:
-            dt = f"{start_d}/.."
-        elif end_d:
-            dt = f"../{end_d}"
+            if start_d and end_d:
+                dt = f"{start_d}/{end_d}"
+            elif start_d:
+                dt = f"{start_d}/.."
+            elif end_d:
+                dt = f"../{end_d}"
+            else:
+                dt = None
+    except DateParseError as e:
+        await process.log(f"Invalid date filter: {e}")
+        await context.reply(
+            f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
+            data=plan.model_dump(),
+        )
+        return
 
     if water_data_fetcher is not None:
         if dt:
