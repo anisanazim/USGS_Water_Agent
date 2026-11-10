@@ -669,3 +669,217 @@ def test_resolver_field_name_aliases(resolver):
     assert res_state.resolved_value == "37"
 
 
+@pytest.mark.asyncio
+async def test_count_with_date_window_applies_params_and_window_phrase():
+    """When a date window is applied, params contain activityStartDateLower/Upper and reply states the window."""
+    from water_agent.handlers.count import handle_parameter_count
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock()
+    mock_fetcher.base_url = "https://api.waterdata.usgs.gov/samples-data"
+    mock_fetcher._build_source_url = lambda url, p: f"{url}?mocked"
+    mock_fetcher._normalize_params = lambda p: p
+    mock_fetcher.get_results_count = AsyncMock(return_value=123)
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        filters={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameter_code": "00665",
+            "start_date": "2020-01-01",
+            "end_date": "2023-07-31",
+        },
+    )
+    ctx = RequestContext(request_id="test-count-window")
+
+    await handle_parameter_count(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        request="How many phosphorus records at USGS-0423205010 between 2020-01-01 and 2023-07-31?",
+        samples_fetcher=mock_fetcher,
+    )
+
+    # Check fetcher call params
+    assert mock_fetcher.get_results_count.called
+    call_params = mock_fetcher.get_results_count.call_args[0][0]
+    assert call_params["activityStartDateLower"] == "2020-01-01"
+    assert call_params["activityStartDateUpper"] == "2023-07-31"
+    assert call_params["monitoringLocationIdentifier"] == "USGS-0423205010"
+
+    # Check user-facing reply text states the window
+    assert mock_context.reply.called
+    reply_text = mock_context.reply.call_args[0][0]
+    assert "between 2020-01-01 and 2023-07-31" in reply_text
+    assert "Found **123** discrete observations" in reply_text
+
+    # Check artifact metadata has date_lower and date_upper
+    assert mock_process.create_artifact.called
+    artifact_meta = mock_process.create_artifact.call_args[1]["metadata"]
+    assert artifact_meta["date_lower"] == "2020-01-01"
+    assert artifact_meta["date_upper"] == "2023-07-31"
+
+
+@pytest.mark.asyncio
+async def test_count_with_no_dates_is_byte_for_byte_unchanged():
+    """When no dates are specified, params and reply are byte-for-byte identical to baseline."""
+    from water_agent.handlers.count import handle_parameter_count
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock()
+    mock_fetcher.base_url = "https://api.waterdata.usgs.gov/samples-data"
+    mock_fetcher._build_source_url = lambda url, p: f"{url}?mocked"
+    mock_fetcher._normalize_params = lambda p: p
+    mock_fetcher.get_results_count = AsyncMock(return_value=123)
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        filters={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameter_code": "00665",
+        },
+    )
+    ctx = RequestContext(request_id="test-count-nodates")
+
+    await handle_parameter_count(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        request="How many phosphorus records at USGS-0423205010?",
+        samples_fetcher=mock_fetcher,
+    )
+
+    call_params = mock_fetcher.get_results_count.call_args[0][0]
+    assert "activityStartDateLower" not in call_params
+    assert "activityStartDateUpper" not in call_params
+
+    reply_text = mock_context.reply.call_args[0][0]
+    # No window phrase in reply
+    assert "between" not in reply_text
+    assert "from" not in reply_text
+    assert "up to" not in reply_text
+    # Exactly matches baseline phrasing
+    assert reply_text.startswith(
+        "Found **123** discrete observations for **Phosphorus as phosphorus, water, unfiltered** (mg/l as P) (code **00665**) at **USGS-0423205010**.\n\n"
+    )
+
+    # Artifact metadata has None for date bounds
+    artifact_meta = mock_process.create_artifact.call_args[1]["metadata"]
+    assert artifact_meta["date_lower"] is None
+    assert artifact_meta["date_upper"] is None
+
+
+@pytest.mark.asyncio
+async def test_count_windowed_reply_labels_lifetime_breakdown():
+    """When a window is applied, breakdown table header is labeled 'Lifetime observations (all dates)'."""
+    from water_agent.handlers.count import handle_parameter_count
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock()
+    mock_fetcher.base_url = "https://api.waterdata.usgs.gov/samples-data"
+    mock_fetcher._build_source_url = lambda url, p: f"{url}?mocked"
+    mock_fetcher._normalize_params = lambda p: p
+    mock_fetcher.get_results_count = AsyncMock(return_value=123)
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        inventory_ref="inv-1",
+        filters={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameter_code": "phosphorus",
+            "start_date": "2020-01-01",
+        },
+    )
+    ctx = RequestContext(request_id="test-count-label")
+    inv_mock = MagicMock()
+    inv_mock.items = {
+        "discrete_parameters": {
+            "Nutrients": [
+                {"descriptor": "Phosphorus, water, unfiltered", "characteristic": "Phosphorus", "count": 500}
+            ]
+        }
+    }
+    ctx.store.get = MagicMock(return_value=inv_mock)
+
+    await handle_parameter_count(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        request="How many phosphorus records at USGS-0423205010 from 2020-01-01?",
+        samples_fetcher=mock_fetcher,
+    )
+
+    reply_text = mock_context.reply.call_args[0][0]
+    assert "Lifetime observations (all dates)" in reply_text
+    assert "Station Observations" not in reply_text
+
+
+@pytest.mark.asyncio
+async def test_count_unparseable_date_fails_closed():
+    """Unparseable date in count handler replies with error and makes no fetch."""
+    from water_agent.handlers.count import handle_parameter_count
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock()
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        filters={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameter_code": "00665",
+            "start_date": "January 2020",
+        },
+    )
+    ctx = RequestContext(request_id="test-count-err")
+
+    await handle_parameter_count(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        request="How many phosphorus records at USGS-0423205010 in January 2020?",
+        samples_fetcher=mock_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "January 2020" in reply_msg
+    assert "YYYY-MM-DD" in reply_msg
+    assert not mock_fetcher.get_results_count.called
+
+

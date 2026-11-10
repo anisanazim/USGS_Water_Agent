@@ -8,7 +8,11 @@ import uuid
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
-from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher
+from water_agent.fetchers.samples_fetcher import (
+    DateParseError,
+    USGSSamplesFetcher,
+    resolve_date_window,
+)
 from water_agent.metadata.discrete_families import (
     DISCRETE_FAMILIES,
     get_family_for_pcode,
@@ -174,11 +178,25 @@ async def handle_parameter_count(
         )
         return
 
+    try:
+        start_date, end_date = resolve_date_window(plan.filters)
+    except DateParseError as e:
+        await process.log(f"Invalid date filter: {e}")
+        await context.reply(
+            f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
+            data=plan.model_dump(),
+        )
+        return
+
     fetcher = samples_fetcher or USGSSamplesFetcher()
-    params = {
+    params: dict[str, Any] = {
         "monitoringLocationIdentifier": station_id,
         "usgsPCode": pcodes,
     }
+    if start_date:
+        params["activityStartDateLower"] = start_date
+    if end_date:
+        params["activityStartDateUpper"] = end_date
 
     total_count = await fetcher.get_results_count(params)
     req_url = fetcher._build_source_url(
@@ -224,21 +242,36 @@ async def handle_parameter_count(
                     elif m["pcode"] in itm.get("descriptor", ""):
                         breakdown_by_pcode[m["pcode"]] = itm["count"]
 
+    # Compute window phrase for response text
+    if start_date and end_date:
+        window_phrase = f" between {start_date} and {end_date}"
+    elif start_date:
+        window_phrase = f" from {start_date}"
+    elif end_date:
+        window_phrase = f" up to {end_date}"
+    else:
+        window_phrase = ""
+
     # Build user-facing response
     if len(pcodes) == 1:
         p_desc = meta_list[0]["descriptor"]
         p_unit = f" ({meta_list[0]['unit']})" if meta_list[0]["unit"] else ""
         response_text = (
             f"Found **{total_count:,}** discrete observations for **{p_desc}**{p_unit} "
-            f"(code **{pcodes[0]}**) at **{station_id}**.\n\n"
+            f"(code **{pcodes[0]}**) at **{station_id}**{window_phrase}.\n\n"
         )
     else:
         response_text = (
-            f"Found **{total_count:,}** total discrete measurements for **{family_name}** at **{station_id}**.\n\n"
+            f"Found **{total_count:,}** total discrete measurements for **{family_name}** at **{station_id}**{window_phrase}.\n\n"
             f"Constituent parameter codes included in this query:\n\n"
         )
         if breakdown_by_pcode:
-            response_text += "| Parameter Code | Parameter Description | Unit | Station Observations |\n"
+            count_col = (
+                "Lifetime observations (all dates)"
+                if (start_date or end_date)
+                else "Station Observations"
+            )
+            response_text += f"| Parameter Code | Parameter Description | Unit | {count_col} |\n"
             response_text += "| :---: | --- | :---: | :---: |\n"
             for m in meta_list:
                 c = breakdown_by_pcode.get(m["pcode"], 0)
@@ -269,6 +302,8 @@ async def handle_parameter_count(
         "parameters": meta_list,
         "breakdown": breakdown_by_pcode,
         "request_url": req_url,
+        "date_lower": start_date,
+        "date_upper": end_date,
     }
     await process.create_artifact(
         mimetype="application/json",
@@ -281,6 +316,8 @@ async def handle_parameter_count(
             "pcodes": pcodes,
             "source_urls": [req_url],
             "artifact_id": artifact_id,
+            "date_lower": start_date,
+            "date_upper": end_date,
         },
     )
 
