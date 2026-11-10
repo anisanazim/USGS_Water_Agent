@@ -78,6 +78,9 @@ async def handle_observation(
     else:
         p_term = param_code or plan.semantic.get("parameter") or plan.semantic.get("measurement") or ""
         p_res = resolve_discrete_parameter(p_term)
+        if p_res.status == "clarification_needed" and p_res.query_type == "unsupported":
+            await context.reply(p_res.message, data=plan.model_dump())
+            return
         if p_res.status == "resolved" and p_res.pcodes:
             query_codes = p_res.pcodes
             family_obj = p_res.family

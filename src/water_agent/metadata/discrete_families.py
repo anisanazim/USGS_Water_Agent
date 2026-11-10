@@ -227,6 +227,9 @@ def search_catalog_characteristics(term: str, limit: int = 15) -> list[dict[str,
     return matches
 
 
+INORGANIC_CARBON_PATTERN = re.compile(r"\b(inorganic\s+carbon|dic|pic)\b", re.IGNORECASE)
+
+
 def resolve_discrete_parameter(
     term: str,
     query_type: Literal["spatial", "value", "count"] = "value",
@@ -237,6 +240,20 @@ def resolve_discrete_parameter(
     and no merging across parameter codes.
     """
     term_clean = term.strip().lower()
+
+    # Guard: inorganic carbon (including DIC/PIC) is not supported
+    if INORGANIC_CARBON_PATTERN.search(term_clean):
+        return DiscreteResolutionResult(
+            status="clarification_needed",
+            query_type="unsupported",
+            family=None,
+            pcodes=[],
+            candidates=[],
+            message=(
+                "Inorganic carbon (including DIC and PIC) is not supported. "
+                "Supported carbon parameters are Total Organic Carbon (00680) and Dissolved Organic Carbon (00681)."
+            ),
+        )
 
     # Find matching family: priority 1 is exact family name or exact pcode
     family = None
