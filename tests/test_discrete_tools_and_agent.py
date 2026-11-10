@@ -716,10 +716,11 @@ async def test_count_with_date_window_applies_params_and_window_phrase():
     assert call_params["activityStartDateUpper"] == "2023-07-31"
     assert call_params["monitoringLocationIdentifier"] == "USGS-0423205010"
 
-    # Check user-facing reply text states the window
+    # Check user-facing reply text states the window interpretation
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "between 2020-01-01 and 2023-07-31" in reply_text
+    assert "Interpreted" in reply_text
+    assert "2020-01-01 to 2023-07-31" in reply_text
     assert "Found **123** discrete observations" in reply_text
 
     # Check artifact metadata has date_lower and date_upper

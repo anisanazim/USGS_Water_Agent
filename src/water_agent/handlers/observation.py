@@ -11,10 +11,13 @@ from usgs_water_data import USGSWaterDataFetcher
 from water_agent.fetchers.samples_fetcher import (
     DateParseError,
     USGSSamplesFetcher,
-    resolve_date_window,
     validate_datetime_interval,
 )
-from water_agent.handlers.common import format_date_for_display
+from water_agent.handlers.common import (
+    format_date_for_display,
+    format_window_error,
+    resolve_handler_temporal_window,
+)
 from water_agent.metadata.discrete_families import (
     INORGANIC_CARBON_UNSUPPORTED_MSG,
     get_parameter,
@@ -96,6 +99,14 @@ async def handle_observation(
             param_code = dominant
             plan.filters["parameter_code"] = dominant
 
+    spec, window_ok = await resolve_handler_temporal_window(context, process, plan)
+    if not window_ok:
+        return
+
+    date_lower = spec.start.isoformat() if spec and spec.start else None
+    date_upper = spec.end.isoformat() if spec and spec.end else None
+    temporal_meta = spec.to_metadata() if spec is not None else None
+
     # 1. Discrete Samples API Path (Workflow 4)
     if discrete_param:
         pcode_arg = query_codes if len(query_codes) > 1 else (query_codes[0] if query_codes else param_code)
@@ -117,20 +128,8 @@ async def handle_observation(
             samples_params["countyFips"] = f"US:{st_num}:{co_num}"
         if plan.filters.get("monitoring_location_id"):
             samples_params["monitoringLocationIdentifier"] = plan.filters["monitoring_location_id"]
-        try:
-            start_date, end_date = resolve_date_window(plan.filters)
-        except DateParseError as e:
-            await process.log(f"Invalid date filter: {e}")
-            await context.reply(
-                f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
-                data=plan.model_dump(),
-            )
-            return
-
-        if start_date:
-            samples_params["activityStartDateLower"] = start_date
-        if end_date:
-            samples_params["activityStartDateUpper"] = end_date
+        if spec is not None:
+            samples_params.update(spec.to_samples_params())
 
         if samples_fetcher is not None:
             samples_res = await samples_fetcher.fetch_results(
@@ -155,10 +154,13 @@ async def handle_observation(
                 data={"urls": samples_res.source_urls},
             )
 
+        interp_prefix = f"{spec.format_interpretation()}\n\n" if spec is not None else ""
+
         if not samples_res.records:
             await process.log("No matching discrete observations found.")
             await context.reply(
                 f"I resolved the filters for your question, but found no matching USGS discrete observations for {discrete_param.descriptor} ({param_code}).\n\n"
+                f"{interp_prefix}"
                 f"Sample media: Water (samples in other media such as sediment/tissue are excluded).",
                 data=plan.model_dump(),
             )
@@ -177,6 +179,9 @@ async def handle_observation(
             "pcodes": query_codes if query_codes else [param_code],
             "count": samples_res.total_count,
             "filters": plan.filters,
+            "date_lower": date_lower,
+            "date_upper": date_upper,
+            "temporal": temporal_meta,
             "summary": samples_res.handle.summary if samples_res.handle else None,
             "records": samples_res.records,
         }
@@ -192,6 +197,9 @@ async def handle_observation(
                 "source_urls": samples_res.source_urls,
                 "retrieved_at": artifact_content["retrieved_at"],
                 "artifact_id": artifact_id,
+                "date_lower": date_lower,
+                "date_upper": date_upper,
+                "temporal": temporal_meta,
             },
         )
         if samples_res.handle:
@@ -205,6 +213,7 @@ async def handle_observation(
 
         response_text = (
             f"Found **{samples_res.total_count:,}** discrete records of {subject_desc}{loc_info}.\n\n"
+            f"{interp_prefix}"
             f"First 10 observations:\n\n"
             f"| Date | Time | Value | Unit | Parameter Code | Descriptor |\n"
             f"| :--- | :--- | :--- | :--- | :--- | :--- |\n"
@@ -244,28 +253,24 @@ async def handle_observation(
     if dropped_keys:
         logger.debug("Dropped non-queryable keys for Daily OGC API: %s", dropped_keys)
 
-    # Build datetime interval: explicit datetime in plan.filters wins (validated as A/B), otherwise resolve from date window
+    # Build datetime interval: explicit datetime in plan.filters wins (validated as A/B), otherwise from TemporalSpec
     explicit_dt = plan.filters.get("datetime")
-    try:
-        if explicit_dt not in (None, ""):
+    spec_dt = spec.to_ogc_datetime() if spec is not None else None
+    if explicit_dt not in (None, ""):
+        try:
             dt: str | None = validate_datetime_interval(explicit_dt)
-        else:
-            start_d, end_d = resolve_date_window(plan.filters)
-            if start_d and end_d:
-                dt = f"{start_d}/{end_d}"
-            elif start_d:
-                dt = f"{start_d}/.."
-            elif end_d:
-                dt = f"../{end_d}"
-            else:
-                dt = None
-    except DateParseError as e:
-        await process.log(f"Invalid date filter: {e}")
-        await context.reply(
-            f"I could not understand the date filter: '{e.value}'. Dates must be specified in YYYY-MM-DD format (for example, '2023-01-15').",
-            data=plan.model_dump(),
+        except DateParseError as e:
+            await process.log(f"Invalid date filter: {e}")
+            await context.reply(format_window_error(e), data=plan.model_dump())
+            return
+        interp_text = (
+            spec.format_interpretation()
+            if (spec is not None and dt == spec_dt)
+            else f"Interpreted date filter as {dt}."
         )
-        return
+    else:
+        dt = spec_dt
+        interp_text = spec.format_interpretation() if spec is not None else ""
 
     if water_data_fetcher is not None:
         if dt:
@@ -297,9 +302,10 @@ async def handle_observation(
 
     if not result.features:
         await process.log("No matching Daily observations found.")
+        interp_note = f" {interp_text}" if interp_text else ""
         await context.reply(
             "I resolved the filters for your question, but found no "
-            "matching USGS Daily observations.",
+            f"matching USGS Daily observations.{interp_note}",
             data=plan.model_dump(),
         )
         return
@@ -317,13 +323,23 @@ async def handle_observation(
         mimetype="application/json",
         description="USGS Daily observations",
         content=json.dumps(
-            {"filters": plan.filters, "readings": readings}, indent=2
+            {
+                "filters": plan.filters,
+                "date_lower": date_lower,
+                "date_upper": date_upper,
+                "temporal": temporal_meta,
+                "readings": readings,
+            },
+            indent=2,
         ).encode("utf-8"),
         metadata={
             "filters": plan.filters,
             "count": len(readings),
             "source_urls": result.source_urls,
             "truncated": result.truncated,
+            "date_lower": date_lower,
+            "date_upper": date_upper,
+            "temporal": temporal_meta,
         },
     )
 
@@ -348,8 +364,9 @@ async def handle_observation(
         if result.truncated:
             capped_notice = f" (results were capped at {len(readings):,}; specify a narrower date window to retrieve all observations)"
 
+        interp_prefix = f"{interp_text} " if interp_text else ""
         await context.reply(
-            f"USGS Daily {param_desc} observations{loc_str} for window {dt}: "
+            f"{interp_prefix}USGS Daily {param_desc} observations{loc_str} for window {dt}: "
             f"Found {len(readings):,} daily value(s) between {earliest_date} and {latest_date}{capped_notice}. "
             f"Most recent value: {latest['value']} {latest['unit']} on {latest['time']} at "
             f"{latest['monitoring_location_id']}.",

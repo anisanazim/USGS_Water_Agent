@@ -664,14 +664,19 @@ def resolve_plan_window(plan: Any, today: date | None = None) -> TemporalSpec | 
         today = current_date()
 
     temporal_error = getattr(plan, "temporal_error", None)
-    if temporal_error:
+    if isinstance(temporal_error, str) and temporal_error.strip():
         raise TemporalResolutionError(
             f"I could not understand the date period ({temporal_error}). "
             "Please provide a clearer date range (for example, '2020-01-01 to 2023-07-31', 'March 2021', or 'winter 2022')."
         )
 
-    filters = getattr(plan, "filters", None) or {}
+    raw_filters = getattr(plan, "filters", None)
+    filters = raw_filters if isinstance(raw_filters, dict) else {}
     req = getattr(plan, "temporal", None)
+    if isinstance(req, dict):
+        req = TemporalRequest.model_validate(req)
+    elif not isinstance(req, TemporalRequest):
+        req = None
 
     if req is not None and has_temporal_fields(req):
         spec = resolve_temporal(req, today=today)
