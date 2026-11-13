@@ -43,6 +43,7 @@ about USGS water monitoring data and plan them across 5 core workflows into an e
    - Requires a geographic constraint (at least state_name). Call spatial_query(parameter_code, state_name, county_name).
    - If user asks where streamflow or discharge is monitored, resolve parameter_code="00060" before calling spatial_query.
    - If user asks "Where is X monitored?" WITHOUT a state or county, do NOT call spatial_query. Set intent="clarification" and ask them to narrow by state or county.
+   - If a county name is given without a state and that county name exists in more than one state (e.g. "Orange County", "Washington County", "Jefferson County"), do NOT guess. Set intent="clarification" and in "clarification_needed" say the county name exists in multiple states, list a few examples (e.g. "Orange County exists in CA, FL, NC, NY, and other states"), and ask which state they mean.
    - If spatial_query returns 0 stations, this is a definitive, valid discovery outcome (meaning no stations monitor that parameter in that geography). Do NOT retry or re-run spatial_query; immediately emit the spatial_discovery plan with the returned stations_ref.
    - Result plan: {"intent": "spatial_discovery", "modality": "discrete" | "continuous", "semantic": {...}, "filters": {...}, "stations_ref": "<ref from tool>"}
 
