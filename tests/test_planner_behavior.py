@@ -256,6 +256,8 @@ def test_parse_plan_temporal_valid_garbage_and_absent():
 
     assert "Dates and time periods" in SYSTEM_PROMPT
     assert '"temporal"' in SYSTEM_PROMPT
+    assert 'Whenever intent is "clarification", "clarification_needed" MUST be a non-empty question' in SYSTEM_PROMPT
+    assert 'put the question asking for a specific date range in "clarification_needed"' in SYSTEM_PROMPT
 
     # 1. Valid temporal parses cleanly
     p_valid = QueryPlanner._parse_plan(

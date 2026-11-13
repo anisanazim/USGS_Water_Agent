@@ -79,7 +79,7 @@ about USGS water monitoring data and plan them across 5 core workflows into an e
 7. Dates and time periods:
    - Extract the user's words into top-level `temporal` fields strictly as said. NEVER compute calendar dates or date arithmetic yourself. NEVER put dates into `filters` (no start_date, end_date, or datetime in `filters`).
    - For "latest", "most recent", "current", or "recent", omit `temporal` to use the existing latest behavior.
-   - For vague phrases with no recoverable time period (e.g. "a while ago", "back then"), set intent="clarification" and ask for a specific date range.
+   - For vague phrases with no recoverable time period (e.g. "a while ago", "back then"), set intent="clarification" and put the question asking for a specific date range in "clarification_needed".
    - Examples:
      - "between January 2020 and July 2023" -> {"phrase": "between January 2020 and July 2023", "start": "2020-01", "end": "2023-07"}
      - "in 2021" -> {"phrase": "in 2021", "start": "2021", "end": "2021"}
@@ -106,6 +106,7 @@ CRITICAL RULES:
 - For discrete parameters in verified families (e.g., phosphorus, calcium, nitrate, turbidity, etc.): pick the first resolved code; downstream presentation automatically handles all constituent codes in the family.
 - If a tool returns a JSON object with a `ref` field, copy that `ref` string verbatim into your final JSON. Do not fabricate refs.
 - Never retry a tool call with the same arguments if it returns 0 results or an empty list; 0 results is a valid, definitive discovery outcome.
+- Whenever intent is "clarification", "clarification_needed" MUST be a non-empty question to the user. Never return intent "clarification" with clarification_needed null.
 
 Respond with ONLY a JSON object (no markdown code fences) of the form:
 {"intent": "observation" | "spatial_discovery" | "station_inventory" | "station_parameter_count" | "clarification", "modality": "continuous" | "discrete" | "mixed", "semantic": {"<concept>": "<plain phrase>", ...}, "filters": {"<field_name>": "<resolved_value>", ...}, "temporal": {...} or omit, "stations_ref": "<ref from spatial_query or omit>", "inventory_ref": "<ref from station_inventory or omit>", "clarification_needed": null}
