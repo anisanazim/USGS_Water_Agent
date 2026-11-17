@@ -443,8 +443,7 @@ async def test_circuit_breaker_open_reply_and_warmup(mock_context, caplog):
 
     assert mock_context.reply.call_count == 1
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
-    assert "(try again in about 13 s)" in reply_msg
+    assert reply_msg == "USGS is temporarily unavailable. Please try again in about 13 s."
 
     summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
     assert len(summary_logs) >= 1
@@ -474,7 +473,7 @@ async def test_circuit_breaker_open_zero_retry_after_omits_suffix(mock_context):
         await agent.run(mock_context, "test request", "query_water_data", None)
 
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
+    assert reply_msg == "USGS is temporarily unavailable. Please try again shortly."
     assert "try again in about" not in reply_msg
 
 

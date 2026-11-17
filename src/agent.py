@@ -246,9 +246,11 @@ class USGSWaterAgent(IChatBioAgent):
             _trigger_warmup()
             logger.warning("Circuit breaker open for request %r: %s", request, exc)
             if exc.retry_after > 0:
-                reply_msg = f"{SLOW_USGS_MESSAGE} (try again in about {math.ceil(exc.retry_after)} s)"
+                reply_msg = (
+                    f"USGS is temporarily unavailable. Please try again in about {math.ceil(exc.retry_after)} s."
+                )
             else:
-                reply_msg = SLOW_USGS_MESSAGE
+                reply_msg = "USGS is temporarily unavailable. Please try again shortly."
             await context.reply(reply_msg)
 
         except asyncio.CancelledError:
