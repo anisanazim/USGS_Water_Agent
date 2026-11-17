@@ -415,3 +415,155 @@ async def test_observation_heading_and_family_display_name(mock_context):
     artifact_desc = process.create_artifact.call_args.kwargs["description"]
     assert "Dissolved oxygen" in artifact_desc
     assert "dissolved_oxygen" not in artifact_desc
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_open_reply_and_warmup(mock_context, caplog):
+    from water_agent.circuit_breaker import CircuitBreakerOpenError
+    from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher
+
+    agent = USGSWaterAgent()
+    fetcher = USGSSamplesFetcher(client=MagicMock(is_closed=False))
+
+    async def open_cb_call(func, *args, **kwargs):
+        raise CircuitBreakerOpenError("usgs_samples_api", 12.3)
+
+    fetcher.circuit_breaker.call = open_cb_call
+
+    async def handler_with_open_cb(context, request, params):
+        await fetcher.get_results_count({
+            "monitoringLocationIdentifier": "USGS-0423205010",
+            "usgsPCode": ["00400", "00403"],
+        })
+
+    mock_warmup = MagicMock()
+    with patch.object(agent, "_handle_query_water_data", handler_with_open_cb):
+        with patch("water_agent.keepwarm.request_warmup", mock_warmup):
+            with caplog.at_level(logging.INFO):
+                await agent.run(mock_context, "test request", "query_water_data", None)
+
+    assert mock_context.reply.call_count == 1
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "(try again in about 13 s)" in reply_msg
+
+    summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
+    assert len(summary_logs) >= 1
+    assert "outcome=deadline" in summary_logs[-1]
+
+    warn_logs = [r for r in caplog.records if r.levelno == logging.WARNING and "Circuit breaker" in r.message]
+    assert len(warn_logs) == 1
+    assert warn_logs[0].exc_info is None
+
+    error_logs = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(error_logs) == 0
+
+    assert mock_warmup.call_count == 1
+    mock_warmup.assert_called_with("USGS-0423205010", ("00400", "00403"))
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_open_zero_retry_after_omits_suffix(mock_context):
+    from water_agent.circuit_breaker import CircuitBreakerOpenError
+
+    agent = USGSWaterAgent()
+
+    async def handler_open_zero(context, request, params):
+        raise CircuitBreakerOpenError("usgs_samples_api", 0.0)
+
+    with patch.object(agent, "_handle_query_water_data", handler_open_zero):
+        await agent.run(mock_context, "test request", "query_water_data", None)
+
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "try again in about" not in reply_msg
+
+
+@pytest.mark.asyncio
+async def test_keepwarm_loop_continues_after_round_exception(caplog):
+    from water_agent.keepwarm import start_keepwarm_loop, stop_keepwarm_loop
+
+    calls = 0
+
+    def flaky_warmup(station, pcodes):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("transient warmup failure")
+
+    with patch("water_agent.keepwarm.request_warmup", side_effect=flaky_warmup):
+        with patch("water_agent.config.settings.keepwarm_enabled", True):
+            with patch("water_agent.config.settings.keepwarm_interval_seconds", 0.04):
+                with patch("water_agent.config.settings.keepwarm_targets", ["USGS-0423205010:00400"]):
+                    with caplog.at_level(logging.WARNING):
+                        stop_keepwarm_loop()
+                        task = start_keepwarm_loop()
+                        assert task is not None
+                        await asyncio.sleep(0.18)
+                        stop_keepwarm_loop()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+                        assert task.cancelled() or task.done()
+
+    # Round 1 raised, then >= 2 more rounds succeeded
+    assert calls >= 3
+    assert any(
+        r.levelno == logging.WARNING and "transient warmup failure" in r.message
+        for r in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_chained_timeout_samples_error_triggers_deadline_reply_and_warmup(mock_context, caplog):
+    import httpx
+    from agent import _is_timeout
+    from water_agent.keepwarm import last_samples_target
+
+    agent = USGSWaterAgent()
+
+    # Build SamplesError -> SamplesError -> ReadTimeout chain
+    try:
+        try:
+            raise httpx.ReadTimeout("read timed out")
+        except httpx.ReadTimeout as e1:
+            raise SamplesError("inner failure") from e1
+    except SamplesError as e2:
+        outer_err = SamplesError("outer failure")
+        outer_err.__cause__ = e2
+
+    assert _is_timeout(outer_err) is True
+
+    # Also verify depth > 5 returns False and __context__ works
+    deep: BaseException = httpx.ReadTimeout("too deep")
+    for i in range(6):
+        wrapper = SamplesError(f"wrap-{i}")
+        wrapper.__cause__ = deep
+        deep = wrapper
+    assert _is_timeout(deep) is False
+
+    ctx_err = SamplesError("implicit context")
+    ctx_err.__context__ = httpx.ConnectTimeout("connect timed out")
+    assert _is_timeout(ctx_err) is True
+
+    async def chained_timeout_handler(context, request, params):
+        last_samples_target.set(("USGS-01646500", ("00665",)))
+        raise outer_err
+
+    mock_warmup = MagicMock()
+    with patch.object(agent, "_handle_query_water_data", chained_timeout_handler):
+        with patch("water_agent.keepwarm.request_warmup", mock_warmup):
+            with caplog.at_level(logging.INFO):
+                await agent.run(mock_context, "test request", "query_water_data", None)
+
+    assert mock_context.reply.call_count == 1
+    reply_msg = mock_context.reply.call_args[0][0]
+    assert "USGS is waking up or responding slowly right now" in reply_msg
+
+    summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
+    assert len(summary_logs) >= 1
+    assert "outcome=deadline" in summary_logs[-1]
+
+    assert mock_warmup.call_count == 1
+    mock_warmup.assert_called_with("USGS-01646500", ("00665",))

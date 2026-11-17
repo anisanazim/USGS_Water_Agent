@@ -110,16 +110,17 @@ async def _keepwarm_loop() -> None:
     """Run keep-warm rounds immediately at startup and then every interval."""
     try:
         while True:
-            for target_entry in settings.keepwarm_targets:
-                station, pcodes = parse_target_entry(target_entry)
-                if station:
-                    request_warmup(station, pcodes)
+            try:
+                for target_entry in settings.keepwarm_targets:
+                    station, pcodes = parse_target_entry(target_entry)
+                    if station:
+                        request_warmup(station, pcodes)
+            except Exception as exc:
+                logger.warning("Error in keep-warm round: %s", exc)
             await asyncio.sleep(settings.keepwarm_interval_seconds)
     except asyncio.CancelledError:
         logger.debug("keep-warm loop cancelled")
         raise
-    except Exception as exc:
-        logger.warning("Error in keep-warm loop: %s", exc)
 
 
 def start_keepwarm_loop() -> asyncio.Task | None:

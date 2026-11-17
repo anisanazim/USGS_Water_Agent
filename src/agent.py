@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextvars import ContextVar
 import logging
+import math
 import time
 import uuid
 from typing import Any, Optional
@@ -20,6 +21,7 @@ from usgs_water_data import (
     USGSValidationError,
     USGSWaterDataFetcher as _RealUSGSWaterDataFetcher,
 )
+from water_agent.circuit_breaker import CircuitBreakerOpenError
 from water_agent.config import settings
 from water_agent.fetchers.samples_fetcher import (
     SamplesError,
@@ -45,6 +47,26 @@ from water_agent.results import RequestContext
 logger = logging.getLogger(__name__)
 
 current_intent: ContextVar[str] = ContextVar("current_intent", default="unknown")
+
+
+SLOW_USGS_MESSAGE = (
+    "USGS is waking up or responding slowly right now, so I couldn't finish in time. "
+    "Please ask again in a minute or two."
+)
+
+
+def _is_timeout(exc: BaseException, max_depth: int = 5) -> bool:
+    """Walk the __cause__/__context__ chain (max depth 5) looking for httpx.TimeoutException."""
+    cur: BaseException | None = exc
+    seen: set[int] = set()
+    for _ in range(max_depth + 1):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        if isinstance(cur, httpx.TimeoutException):
+            return True
+        cur = cur.__cause__ if cur.__cause__ is not None else cur.__context__
+    return False
 
 
 def _trigger_warmup() -> None:
@@ -182,9 +204,7 @@ class USGSWaterAgent(IChatBioAgent):
         except TimeoutError:
             outcome = "deadline"
             _trigger_warmup()
-            await context.reply(
-                "USGS is waking up or responding slowly right now, so I couldn't finish in time. Please ask again in a minute or two."
-            )
+            await context.reply(SLOW_USGS_MESSAGE)
 
         except (USGSValidationError, SamplesValidationError) as exc:
             outcome = "error"
@@ -208,12 +228,10 @@ class USGSWaterAgent(IChatBioAgent):
             )
 
         except (USGSServiceError, SamplesError) as exc:
-            if isinstance(getattr(exc, "__cause__", None), httpx.TimeoutException):
+            if _is_timeout(exc):
                 outcome = "deadline"
                 _trigger_warmup()
-                await context.reply(
-                    "USGS is waking up or responding slowly right now, so I couldn't finish in time. Please ask again in a minute or two."
-                )
+                await context.reply(SLOW_USGS_MESSAGE)
             else:
                 outcome = "error"
                 logger.error("USGS service error for request %r: %s", request, exc)
@@ -222,6 +240,16 @@ class USGSWaterAgent(IChatBioAgent):
                 await context.reply(
                     f"The USGS service encountered an error processing that request{reason}"
                 )
+
+        except CircuitBreakerOpenError as exc:
+            outcome = "deadline"
+            _trigger_warmup()
+            logger.warning("Circuit breaker open for request %r: %s", request, exc)
+            if exc.retry_after > 0:
+                reply_msg = f"{SLOW_USGS_MESSAGE} (try again in about {math.ceil(exc.retry_after)} s)"
+            else:
+                reply_msg = SLOW_USGS_MESSAGE
+            await context.reply(reply_msg)
 
         except asyncio.CancelledError:
             raise
