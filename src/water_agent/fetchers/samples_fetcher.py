@@ -271,6 +271,20 @@ class USGSSamplesFetcher:
 
     async def _safe_get(self, url: str, params: dict[str, Any] | None = None) -> httpx.Response:
         """Issue an HTTP GET request guarded by the CircuitBreaker, retries, and Tracing Span."""
+        if params:
+            loc = params.get("monitoringLocationIdentifier")
+            if isinstance(loc, str) and "," not in loc and loc.strip():
+                station_id = loc.strip()
+                pcode = params.get("usgsPCode")
+                if isinstance(pcode, str):
+                    pcodes = tuple(sorted(p.strip() for p in pcode.split(",") if p.strip()))
+                elif isinstance(pcode, (list, tuple, set)):
+                    pcodes = tuple(sorted(str(p).strip() for p in pcode if str(p).strip()))
+                else:
+                    pcodes = ()
+                from water_agent.keepwarm import last_samples_target
+                last_samples_target.set((station_id, pcodes))
+
         from water_agent.tracing import start_span
         async with start_span("usgs_samples.http_get", attributes={"http.url": url, "http.method": "GET"}) as span:
             async def _do():

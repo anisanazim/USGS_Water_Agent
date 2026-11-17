@@ -113,7 +113,6 @@ async def test_read_timeout_does_not_retry():
 @pytest.mark.asyncio
 async def test_503_retries_up_to_max_attempts():
     from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher
-    import httpx
 
     resp = MagicMock()
     resp.status_code = 503
@@ -169,3 +168,108 @@ async def test_timeout_samples_error_triggers_deadline_reply(mock_context, caplo
     assert len(summary_logs) >= 1
     assert "outcome=deadline" in summary_logs[-1]
 
+
+@pytest.mark.asyncio
+async def test_contextvar_set_by_fetch_and_readable_in_agent_run(mock_context):
+    from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher
+    import httpx
+
+    agent = USGSWaterAgent()
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(side_effect=httpx.ReadTimeout("timed out"))
+    mock_client.is_closed = False
+
+    fetcher = USGSSamplesFetcher(client=mock_client)
+
+    async def handler_with_fetch(context, request, params):
+        await fetcher.get_results_count({
+            "monitoringLocationIdentifier": "USGS-0423205010",
+            "usgsPCode": ["00400", "00403"],
+        })
+
+    mock_warmup = MagicMock()
+    with patch.object(agent, "_handle_query_water_data", handler_with_fetch):
+        with patch("water_agent.keepwarm.request_warmup", mock_warmup):
+            await agent.run(mock_context, "test request", "query_water_data", None)
+
+    assert mock_warmup.call_count == 1
+    station_arg, pcodes_arg = mock_warmup.call_args[0]
+    assert station_arg == "USGS-0423205010"
+    assert set(pcodes_arg) == {"00400", "00403"}
+
+
+@pytest.mark.asyncio
+async def test_request_warmup_single_flight_and_removal():
+    from water_agent.keepwarm import request_warmup, _WARMING
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+
+    async def slow_get(*args, **kwargs):
+        await asyncio.sleep(0.1)
+        return mock_resp
+
+    with patch("httpx.AsyncClient.get", side_effect=slow_get):
+        _WARMING.clear()
+        request_warmup("USGS-0423205010", ("00400",))
+        # Second call while first is in-flight
+        request_warmup("USGS-0423205010", ("00400",))
+
+        assert len(_WARMING) == 1
+        task = _WARMING["USGS-0423205010"]
+
+        await task
+        # After done, entry is removed from _WARMING
+        assert "USGS-0423205010" not in _WARMING
+
+
+@pytest.mark.asyncio
+async def test_request_warmup_cap():
+    from water_agent.keepwarm import request_warmup, _WARMING
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+
+    async def slow_get(*args, **kwargs):
+        await asyncio.sleep(0.2)
+        return mock_resp
+
+    with patch("httpx.AsyncClient.get", side_effect=slow_get):
+        with patch("water_agent.config.settings.max_warmups", 2):
+            _WARMING.clear()
+            request_warmup("USGS-0001")
+            request_warmup("USGS-0002")
+            # Third call should hit the cap of 2
+            request_warmup("USGS-0003")
+
+            assert len(_WARMING) == 2
+            assert "USGS-0003" not in _WARMING
+
+            await asyncio.gather(*list(_WARMING.values()))
+            assert len(_WARMING) == 0
+
+
+@pytest.mark.asyncio
+async def test_request_warmup_random_date_and_swallow_exceptions():
+    from water_agent.keepwarm import request_warmup, _WARMING
+    import httpx
+
+    captured_params = []
+
+    async def err_get(self, url, params=None, **kwargs):
+        captured_params.append(params)
+        raise httpx.ConnectError("network down")
+
+    with patch.object(httpx.AsyncClient, "get", err_get):
+        _WARMING.clear()
+        request_warmup("USGS-0423205010", ("00400",))
+        task = _WARMING.get("USGS-0423205010")
+        assert task is not None
+        # Does not raise even though client.get raised
+        await task
+        assert "USGS-0423205010" not in _WARMING
+        assert len(captured_params) == 1
+        start_date = captured_params[0]["activityStartDateLower"]
+        year = int(start_date.split("-")[0])
+        assert 1990 <= year <= 2020

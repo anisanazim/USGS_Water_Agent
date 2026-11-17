@@ -160,6 +160,11 @@ class USGSWaterAgent(IChatBioAgent):
         intent = "unknown"
         outcome = "ok"
         current_intent.set("unknown")
+        try:
+            from water_agent.keepwarm import last_samples_target
+            last_samples_target.set(None)
+        except Exception:
+            pass
 
         try:
             handler = self._entrypoint_handlers.get(entrypoint)

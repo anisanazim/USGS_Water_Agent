@@ -78,6 +78,11 @@ class WaterAgentSettings(BaseSettings):
         validation_alias="USGS_MAX_ATTEMPTS",
         description="Maximum retry attempts for transient errors",
     )
+    max_warmups: int = Field(
+        default=3,
+        validation_alias="MAX_WARMUPS",
+        description="Maximum concurrent warm-up requests across all stations",
+    )
 
     # Circuit Breaker Configuration
     circuit_breaker_failure_threshold: int = Field(
