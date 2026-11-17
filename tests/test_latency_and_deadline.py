@@ -273,3 +273,55 @@ async def test_request_warmup_random_date_and_swallow_exceptions():
         start_date = captured_params[0]["activityStartDateLower"]
         year = int(start_date.split("-")[0])
         assert 1990 <= year <= 2020
+
+
+@pytest.mark.asyncio
+async def test_keepwarm_loop_runs_rounds_and_cancels_cleanly():
+    from water_agent.keepwarm import start_keepwarm_loop, stop_keepwarm_loop, _KEEPWARM_TASK
+
+    mock_warmup = MagicMock()
+    with patch("water_agent.keepwarm.request_warmup", mock_warmup):
+        with patch("water_agent.config.settings.keepwarm_enabled", True):
+            with patch("water_agent.config.settings.keepwarm_interval_seconds", 0.05):
+                with patch("water_agent.config.settings.keepwarm_targets", ["USGS-0423205010:00400,00403"]):
+                    stop_keepwarm_loop()
+                    task = start_keepwarm_loop()
+                    assert task is not None
+                    await asyncio.sleep(0.18)
+                    stop_keepwarm_loop()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    assert task.cancelled() or task.done()
+
+    # In 0.18s with 0.05s interval, should have run at least 2 rounds (round 0 at t=0, round 1 at t=0.05, round 2 at t=0.10, etc.)
+    assert mock_warmup.call_count >= 2
+    mock_warmup.assert_called_with("USGS-0423205010", ("00400", "00403"))
+
+
+def test_keepwarm_disabled_runs_nothing():
+    from water_agent.keepwarm import start_keepwarm_loop, stop_keepwarm_loop
+
+    with patch("water_agent.config.settings.keepwarm_enabled", False):
+        stop_keepwarm_loop()
+        task = start_keepwarm_loop()
+        assert task is None
+
+
+def test_keepwarm_targets_parsing():
+    from water_agent.keepwarm import parse_target_entry
+    from water_agent.config import WaterAgentSettings
+
+    # Helper parsing
+    station, pcodes = parse_target_entry("USGS-0423205010:00400,00403")
+    assert station == "USGS-0423205010"
+    assert pcodes == ("00400", "00403")
+
+    station2, pcodes2 = parse_target_entry("USGS-01646500")
+    assert station2 == "USGS-01646500"
+    assert pcodes2 == ()
+
+    # Settings env parsing with semicolon-separated entries
+    s = WaterAgentSettings(KEEPWARM_TARGETS="STA-1:00400;STA-2:00060,00065")
+    assert s.keepwarm_targets == ["STA-1:00400", "STA-2:00060,00065"]

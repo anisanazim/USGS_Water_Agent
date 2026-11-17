@@ -93,3 +93,64 @@ def request_warmup(station_id: str, pcodes: tuple[str, ...] = ()) -> None:
     task = loop.create_task(_run_warmup_ping(station_id, pcodes))
     _WARMING[station_id] = task
 
+
+def parse_target_entry(entry: str) -> tuple[str, tuple[str, ...]]:
+    """Parse 'station:pcode1,pcode2' into (station, (pcode1, pcode2))."""
+    if ":" in entry:
+        station, pcodes_str = entry.split(":", 1)
+        pcodes = tuple(sorted(p.strip() for p in pcodes_str.split(",") if p.strip()))
+        return station.strip(), pcodes
+    return entry.strip(), ()
+
+
+_KEEPWARM_TASK: asyncio.Task | None = None
+
+
+async def _keepwarm_loop() -> None:
+    """Run keep-warm rounds immediately at startup and then every interval."""
+    try:
+        while True:
+            for target_entry in settings.keepwarm_targets:
+                station, pcodes = parse_target_entry(target_entry)
+                if station:
+                    request_warmup(station, pcodes)
+            await asyncio.sleep(settings.keepwarm_interval_seconds)
+    except asyncio.CancelledError:
+        logger.debug("keep-warm loop cancelled")
+        raise
+    except Exception as exc:
+        logger.warning("Error in keep-warm loop: %s", exc)
+
+
+def start_keepwarm_loop() -> asyncio.Task | None:
+    """Start the background keep-warm loop if enabled and not already running."""
+    global _KEEPWARM_TASK
+    if not settings.keepwarm_enabled:
+        logger.debug("keep-warm is disabled; not starting loop")
+        return None
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+    if _KEEPWARM_TASK is not None and not _KEEPWARM_TASK.done():
+        task_loop = getattr(_KEEPWARM_TASK, "get_loop", lambda: None)()
+        if task_loop is loop:
+            return _KEEPWARM_TASK
+        stop_keepwarm_loop()
+
+    _KEEPWARM_TASK = loop.create_task(_keepwarm_loop())
+    return _KEEPWARM_TASK
+
+
+def stop_keepwarm_loop() -> None:
+    """Stop the background keep-warm loop cleanly."""
+    global _KEEPWARM_TASK
+    if _KEEPWARM_TASK is not None and not _KEEPWARM_TASK.done():
+        try:
+            _KEEPWARM_TASK.cancel()
+        except RuntimeError:
+            pass
+    _KEEPWARM_TASK = None
+

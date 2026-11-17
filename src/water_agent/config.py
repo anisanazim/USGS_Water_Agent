@@ -5,7 +5,7 @@ import os
 from functools import lru_cache
 from typing import Any, Optional
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,6 +83,41 @@ class WaterAgentSettings(BaseSettings):
         validation_alias="MAX_WARMUPS",
         description="Maximum concurrent warm-up requests across all stations",
     )
+    keepwarm_enabled: bool = Field(
+        default=True,
+        validation_alias="KEEPWARM_ENABLED",
+        description="Whether background keep-warm loop is enabled",
+    )
+    keepwarm_interval_seconds: float = Field(
+        default=300.0,
+        validation_alias="KEEPWARM_INTERVAL_SECONDS",
+        description="Interval in seconds between keep-warm rounds",
+    )
+    keepwarm_targets: list[str] = Field(
+        default_factory=lambda: ["USGS-0423205010:00400,00403"],
+        validation_alias="KEEPWARM_TARGETS",
+        description="Target stations and pcodes for keep-warm pings",
+    )
+
+    @field_validator("keepwarm_targets", mode="before")
+    @classmethod
+    def _parse_keepwarm_targets(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
+            return [entry.strip() for entry in v.split(";") if entry.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return v
 
     # Circuit Breaker Configuration
     circuit_breaker_failure_threshold: int = Field(

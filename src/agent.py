@@ -161,8 +161,10 @@ class USGSWaterAgent(IChatBioAgent):
         outcome = "ok"
         current_intent.set("unknown")
         try:
-            from water_agent.keepwarm import last_samples_target
+            from water_agent.keepwarm import last_samples_target, start_keepwarm_loop
             last_samples_target.set(None)
+            if settings.keepwarm_enabled:
+                start_keepwarm_loop()
         except Exception:
             pass
 
@@ -313,4 +315,18 @@ class USGSWaterAgent(IChatBioAgent):
 
 
 def create_app():
-    return build_agent_app(USGSWaterAgent())
+    from water_agent.keepwarm import start_keepwarm_loop, stop_keepwarm_loop
+
+    agent = USGSWaterAgent()
+    app = build_agent_app(agent)
+
+    async def on_startup():
+        if settings.keepwarm_enabled:
+            start_keepwarm_loop()
+
+    async def on_shutdown():
+        stop_keepwarm_loop()
+
+    app.add_event_handler("startup", on_startup)
+    app.add_event_handler("shutdown", on_shutdown)
+    return app
