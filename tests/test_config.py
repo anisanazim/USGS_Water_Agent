@@ -6,13 +6,29 @@ from pydantic import SecretStr
 from water_agent.config import WaterAgentSettings, get_settings, require_api_key
 
 
-def test_default_settings():
-    s = WaterAgentSettings()
+def test_default_settings(monkeypatch):
+    for var in (
+        "USGS_API_VERSION",
+        "HEARTBEAT_INTERVAL_SECONDS",
+        "USGS_REQUEST_TIMEOUT",
+        "USGS_SAMPLES_TIMEOUT",
+        "USGS_MAX_ATTEMPTS",
+        "REQUEST_DEADLINE_SECONDS",
+        "MAX_WARMUPS",
+        "KEEPWARM_ENABLED",
+        "KEEPWARM_INTERVAL_SECONDS",
+        "OPENAI_MODEL",
+        "USGS_OGC_BASE_URL",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    s = WaterAgentSettings(_env_file=None)
     assert s.usgs_api_version == "v0"
+    assert s.heartbeat_interval_seconds == 20.0
     assert s.request_timeout_seconds == 15.0
-    assert s.samples_timeout_seconds == 50.0
+    assert s.samples_timeout_seconds == 240.0
     assert s.max_attempts == 2
-    assert s.request_deadline_seconds == 55.0
+    assert s.request_deadline_seconds == 300.0
     assert s.max_warmups == 3
     assert s.keepwarm_enabled is True
     assert s.keepwarm_interval_seconds == 300.0

@@ -47,8 +47,7 @@ async def test_deadline_timeout_slow_usgs_reply_and_log(mock_context, caplog):
     # Exactly one reply sent
     assert mock_context.reply.call_count == 1
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS is waking up or responding slowly right now" in reply_msg
-    assert "Please ask again in a minute or two." in reply_msg
+    assert reply_msg == "USGS has been unresponsive for several minutes. Please try again later."
 
     # Summary log line has outcome=deadline
     summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
@@ -176,7 +175,7 @@ async def test_timeout_samples_error_triggers_deadline_reply(mock_context, caplo
 
     assert mock_context.reply.call_count == 1
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
     assert mock_warmup.call_count == 1
 
     summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
@@ -444,7 +443,7 @@ async def test_circuit_breaker_open_reply_and_warmup(mock_context, caplog):
 
     assert mock_context.reply.call_count == 1
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
     assert "(try again in about 13 s)" in reply_msg
 
     summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
@@ -475,7 +474,7 @@ async def test_circuit_breaker_open_zero_retry_after_omits_suffix(mock_context):
         await agent.run(mock_context, "test request", "query_water_data", None)
 
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
     assert "try again in about" not in reply_msg
 
 
@@ -559,7 +558,7 @@ async def test_chained_timeout_samples_error_triggers_deadline_reply_and_warmup(
 
     assert mock_context.reply.call_count == 1
     reply_msg = mock_context.reply.call_args[0][0]
-    assert "USGS is waking up or responding slowly right now" in reply_msg
+    assert "USGS has been unresponsive for several minutes. Please try again later." in reply_msg
 
     summary_logs = [r.message for r in caplog.records if "outcome=" in r.message]
     assert len(summary_logs) >= 1
@@ -567,3 +566,181 @@ async def test_chained_timeout_samples_error_triggers_deadline_reply_and_warmup(
 
     assert mock_warmup.call_count == 1
     mock_warmup.assert_called_with("USGS-01646500", ("00665",))
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_emits_increasing_logs_and_none_for_fast_blocks():
+    import re
+    from water_agent.heartbeat import heartbeat
+
+    # Slow block (~0.18 s) with 0.05 s interval -> 3 heartbeat logs with increasing elapsed values
+    slow_process = MagicMock()
+    slow_logs: list[str] = []
+
+    async def record_slow_log(msg: str, **kwargs):
+        slow_logs.append(msg)
+
+    slow_process.log = AsyncMock(side_effect=record_slow_log)
+
+    with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.05):
+        async with heartbeat(slow_process):
+            await asyncio.sleep(0.18)
+
+    assert len(slow_logs) == 3, f"Expected 3 heartbeat logs, got {len(slow_logs)}: {slow_logs}"
+    elapsed_vals = []
+    for msg in slow_logs:
+        assert msg.startswith("Waiting for USGS to respond (")
+        assert msg.endswith(" s)…")
+        m = re.search(r"\(([0-9.]+) s\)", msg)
+        assert m is not None
+        elapsed_vals.append(float(m.group(1)))
+    assert elapsed_vals[0] < elapsed_vals[1] < elapsed_vals[2]
+
+    # Fast block (0.03 s) with 0.05 s interval -> 0 heartbeats
+    fast_process = MagicMock()
+    fast_process.log = AsyncMock()
+
+    with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.05):
+        async with heartbeat(fast_process):
+            await asyncio.sleep(0.03)
+
+    assert fast_process.log.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_message_switches_at_60s():
+    from water_agent.heartbeat import heartbeat
+
+    process = MagicMock()
+    logs: list[str] = []
+
+    async def record_log(msg: str, **kwargs):
+        logs.append(msg)
+
+    process.log = AsyncMock(side_effect=record_log)
+
+    # Simulate start=100.0, beat 1 at 120.0 (20s), beat 2 at 165.0 (65s)
+    monotonic_vals = [100.0, 120.0, 165.0]
+    idx = 0
+
+    def fake_monotonic():
+        nonlocal idx
+        val = monotonic_vals[min(idx, len(monotonic_vals) - 1)]
+        idx += 1
+        return val
+
+    with patch("water_agent.heartbeat._monotonic", side_effect=fake_monotonic):
+        with patch("water_agent.config.settings.request_deadline_seconds", 300.0):
+            with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.03):
+                async with heartbeat(process):
+                    await asyncio.sleep(0.08)
+
+    assert len(logs) >= 2
+    assert logs[0] == "Waiting for USGS to respond (20 s)…"
+    assert logs[1] == (
+        "Still waiting for USGS (65 s). After a quiet period USGS can take a few minutes to "
+        "wake up; I'll keep waiting up to 300 s."
+    )
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_task_cleaned_up_on_normal_error_and_cancel():
+    from water_agent.heartbeat import heartbeat
+
+    process = MagicMock()
+    process.log = AsyncMock()
+    baseline_tasks = asyncio.all_tasks()
+
+    # 1. Normal exit
+    with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.05):
+        async with heartbeat(process):
+            await asyncio.sleep(0.02)
+    assert asyncio.all_tasks() == baseline_tasks
+
+    # 2. Exception raised inside block
+    with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.05):
+        with pytest.raises(ValueError, match="handler boom"):
+            async with heartbeat(process):
+                await asyncio.sleep(0.02)
+                raise ValueError("handler boom")
+    assert asyncio.all_tasks() == baseline_tasks
+
+    # 3. Outer task cancelled
+    started = asyncio.Event()
+
+    async def cancellable_block():
+        with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.05):
+            async with heartbeat(process):
+                started.set()
+                await asyncio.sleep(10.0)
+
+    outer = asyncio.create_task(cancellable_block())
+    await started.wait()
+    outer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await outer
+    assert asyncio.all_tasks() == baseline_tasks
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_process_log_failure_stops_quietly(caplog):
+    from water_agent.heartbeat import heartbeat
+
+    process = MagicMock()
+    process.log = AsyncMock(side_effect=RuntimeError("log channel closed"))
+
+    with caplog.at_level(logging.DEBUG, logger="water_agent.heartbeat"):
+        with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.03):
+            async with heartbeat(process):
+                await asyncio.sleep(0.12)
+
+    # Stopped after the first failed log call and did not raise into handler
+    assert process.log.call_count == 1
+    assert any(
+        r.levelno == logging.DEBUG and "log channel closed" in r.message
+        for r in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_query_water_data_uses_heartbeat_not_reply():
+    from contextlib import asynccontextmanager
+    from water_agent.query_planner import QueryPlan
+
+    agent = USGSWaterAgent()
+    process = MagicMock()
+    process_logs: list[str] = []
+
+    async def capture_log(msg: str, **kwargs):
+        process_logs.append(msg)
+
+    process.log = AsyncMock(side_effect=capture_log)
+
+    @asynccontextmanager
+    async def fake_begin_process(desc):
+        yield process
+
+    ctx = MagicMock()
+    ctx.begin_process = fake_begin_process
+    ctx.reply = AsyncMock()
+
+    fake_plan = QueryPlan(
+        intent="observation",
+        filters={"monitoring_location_id": "USGS-01646500", "parameter_code": "00300"},
+    )
+    fake_planner = MagicMock()
+    fake_planner.plan = AsyncMock(return_value=fake_plan)
+    agent = USGSWaterAgent(query_planner=fake_planner)
+
+    async def slow_obs_handler(context, proc, plan, req_ctx, **kwargs):
+        await asyncio.sleep(0.14)
+        await context.reply("Final answer")
+
+    with patch("agent.handle_observation", side_effect=slow_obs_handler):
+        with patch("water_agent.config.settings.heartbeat_interval_seconds", 0.04):
+            await agent._handle_query_water_data(ctx, "show dissolved oxygen", None)
+
+    heartbeat_logs = [m for m in process_logs if "Waiting for USGS to respond" in m]
+    assert len(heartbeat_logs) >= 2
+    assert ctx.reply.call_count == 1
+    assert ctx.reply.call_args[0][0] == "Final answer"

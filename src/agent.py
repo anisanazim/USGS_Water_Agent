@@ -40,6 +40,7 @@ from water_agent.handlers import (
     handle_observation,
     handle_spatial,
 )
+from water_agent.heartbeat import heartbeat
 from water_agent.metadata.models import QueryIntent
 from water_agent.query_planner import QueryPlanner
 from water_agent.results import RequestContext
@@ -50,8 +51,7 @@ current_intent: ContextVar[str] = ContextVar("current_intent", default="unknown"
 
 
 SLOW_USGS_MESSAGE = (
-    "USGS is waking up or responding slowly right now, so I couldn't finish in time. "
-    "Please ask again in a minute or two."
+    "USGS has been unresponsive for several minutes. Please try again later."
 )
 
 
@@ -297,64 +297,71 @@ class USGSWaterAgent(IChatBioAgent):
                     f"Semantic interpretation: {plan.semantic}", data=plan.semantic
                 )
 
-            # Intent-Driven Router across the 5 core workflows + clarification
-            # 1. Clarification & Disambiguation (Workflow 6)
-            if plan.intent == QueryIntent.CLARIFICATION or plan.clarification_needed:
+            async with heartbeat(process):
+                # Intent-Driven Router across the 5 core workflows + clarification
+                # 1. Clarification & Disambiguation (Workflow 6)
+                if plan.intent == QueryIntent.CLARIFICATION or plan.clarification_needed:
+                    await handle_clarification(context, process, plan, ctx, request)
+                    return
+
+                # 2. Spatial Station Discovery (Workflow 1)
+                if plan.intent == QueryIntent.SPATIAL_DISCOVERY or plan.stations_ref:
+                    await handle_spatial(context, process, plan, ctx)
+                    return
+
+                # 3. Station Parameter Counts (Workflow 3)
+                if plan.intent == QueryIntent.STATION_PARAMETER_COUNT:
+                    await handle_parameter_count(
+                        context, process, plan, ctx, request, samples_fetcher=self.samples_fetcher
+                    )
+                    return
+
+                # 4. Station Inventory (Workflow 2)
+                if (
+                    plan.intent == QueryIntent.STATION_INVENTORY
+                    or getattr(plan, "inventory_ref", None)
+                ):
+                    await handle_inventory(context, process, plan, ctx, request)
+                    return
+
+                # 4. Observation Values (Workflows 4 & 5: Discrete & Continuous)
+                if plan.intent == QueryIntent.OBSERVATION or plan.filters:
+                    await handle_observation(
+                        context,
+                        process,
+                        plan,
+                        ctx,
+                        samples_fetcher=self.samples_fetcher,
+                        water_data_fetcher=self.water_data_fetcher,
+                    )
+                    return
+
+                # Fallback guardrail
                 await handle_clarification(context, process, plan, ctx, request)
-                return
-
-            # 2. Spatial Station Discovery (Workflow 1)
-            if plan.intent == QueryIntent.SPATIAL_DISCOVERY or plan.stations_ref:
-                await handle_spatial(context, process, plan, ctx)
-                return
-
-            # 3. Station Parameter Counts (Workflow 3)
-            if plan.intent == QueryIntent.STATION_PARAMETER_COUNT:
-                await handle_parameter_count(
-                    context, process, plan, ctx, request, samples_fetcher=self.samples_fetcher
-                )
-                return
-
-            # 4. Station Inventory (Workflow 2)
-            if (
-                plan.intent == QueryIntent.STATION_INVENTORY
-                or getattr(plan, "inventory_ref", None)
-            ):
-                await handle_inventory(context, process, plan, ctx, request)
-                return
-
-            # 4. Observation Values (Workflows 4 & 5: Discrete & Continuous)
-            if plan.intent == QueryIntent.OBSERVATION or plan.filters:
-                await handle_observation(
-                    context,
-                    process,
-                    plan,
-                    ctx,
-                    samples_fetcher=self.samples_fetcher,
-                    water_data_fetcher=self.water_data_fetcher,
-                )
-                return
-
-            # Fallback guardrail
-            await handle_clarification(context, process, plan, ctx, request)
 
     # Backward-compatible handler alias
     _handle_answer_daily_query = _handle_query_water_data
 
 
 def create_app():
+    from contextlib import asynccontextmanager
+
     from water_agent.keepwarm import start_keepwarm_loop, stop_keepwarm_loop
 
     agent = USGSWaterAgent()
     app = build_agent_app(agent)
 
-    async def on_startup():
+    inner_lifespan = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def lifespan(scope_app):
         if settings.keepwarm_enabled:
             start_keepwarm_loop()
+        try:
+            async with inner_lifespan(scope_app) as state:
+                yield state
+        finally:
+            stop_keepwarm_loop()
 
-    async def on_shutdown():
-        stop_keepwarm_loop()
-
-    app.add_event_handler("startup", on_startup)
-    app.add_event_handler("shutdown", on_shutdown)
+    app.router.lifespan_context = lifespan
     return app

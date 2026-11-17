@@ -57,11 +57,22 @@ class WaterAgentSettings(BaseSettings):
         description="Model name to use for planning loop",
     )
 
-    # Timeouts & Retries
+    # Timeouts, Heartbeats & Retries
+    # Note on iChatBio's 60 s idle rule: the iChatBio backend times out an agent only after
+    # 60 s WITHOUT receiving any message, and every message (including process.log heartbeats)
+    # resets that timer. Because heartbeat_interval_seconds (default 20 s) keeps the stream
+    # active well under the 60 s idle limit, request_deadline_seconds (300 s) and
+    # samples_timeout_seconds (240 s) are total wait caps for cold USGS wake-ups—do NOT
+    # "fix" these back down to < 60 s.
+    heartbeat_interval_seconds: float = Field(
+        default=20.0,
+        validation_alias="HEARTBEAT_INTERVAL_SECONDS",
+        description="Interval in seconds between process.log heartbeats (must stay well below iChatBio's 60 s idle timeout)",
+    )
     request_deadline_seconds: float = Field(
-        default=55.0,
+        default=300.0,
         validation_alias="REQUEST_DEADLINE_SECONDS",
-        description="Overall request deadline in seconds",
+        description="Overall total request wait cap in seconds (heartbeats reset iChatBio's 60 s idle timer)",
     )
     request_timeout_seconds: float = Field(
         default=15.0,
@@ -69,9 +80,9 @@ class WaterAgentSettings(BaseSettings):
         description="Timeout for continuous OGC API requests in seconds",
     )
     samples_timeout_seconds: float = Field(
-        default=50.0,
+        default=240.0,
         validation_alias="USGS_SAMPLES_TIMEOUT",
-        description="Timeout for discrete samples API requests in seconds",
+        description="Timeout for discrete samples API requests in seconds (allows cold USGS wake-up under heartbeats)",
     )
     max_attempts: int = Field(
         default=2,
