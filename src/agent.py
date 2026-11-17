@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+from contextvars import ContextVar
 import logging
+import time
 import uuid
 from typing import Any, Optional
 
+import httpx
 from ichatbio.agent import IChatBioAgent
 from ichatbio.agent_response import ResponseContext
 from ichatbio.server import build_agent_app
@@ -16,6 +20,7 @@ from usgs_water_data import (
     USGSValidationError,
     USGSWaterDataFetcher as _RealUSGSWaterDataFetcher,
 )
+from water_agent.config import settings
 from water_agent.fetchers.samples_fetcher import (
     SamplesError,
     SamplesRateLimitError,
@@ -38,6 +43,18 @@ from water_agent.query_planner import QueryPlanner
 from water_agent.results import RequestContext
 
 logger = logging.getLogger(__name__)
+
+current_intent: ContextVar[str] = ContextVar("current_intent", default="unknown")
+
+
+def _trigger_warmup() -> None:
+    try:
+        from water_agent.keepwarm import last_samples_target, request_warmup
+        target = last_samples_target.get()
+        if target:
+            request_warmup(*target)
+    except Exception:
+        pass
 
 QUERY_WATER_DATA_DESCRIPTION = """\
 Answers natural-language questions about USGS water monitoring data across both \
@@ -138,39 +155,85 @@ class USGSWaterAgent(IChatBioAgent):
         metadata: dict[str, Any] | None = None,
     ):
         logger.debug("run() entrypoint=%s, request=%r, params=%s", entrypoint, request, params)
-        handler = self._entrypoint_handlers.get(entrypoint)
-        if handler is None:
-            logger.warning("Unknown entrypoint: %s", entrypoint)
-            await context.reply(f"Unknown entrypoint: {entrypoint}")
-            return
+        start_time = time.monotonic()
+        request_id = (metadata or {}).get("request_id") or str(uuid.uuid4())
+        intent = "unknown"
+        outcome = "ok"
+        current_intent.set("unknown")
 
         try:
-            await handler(context, request, params)
+            handler = self._entrypoint_handlers.get(entrypoint)
+            if handler is None:
+                logger.warning("Unknown entrypoint: %s", entrypoint)
+                outcome = "error"
+                await context.reply(f"Unknown entrypoint: {entrypoint}")
+                return
+
+            async with asyncio.timeout(settings.request_deadline_seconds):
+                await handler(context, request, params)
+
+        except TimeoutError:
+            outcome = "deadline"
+            _trigger_warmup()
+            await context.reply(
+                "USGS is waking up or responding slowly right now, so I couldn't finish in time. Please ask again in a minute or two."
+            )
 
         except (USGSValidationError, SamplesValidationError) as exc:
+            outcome = "error"
             logger.info("Validation error for request %r: %s", request, exc)
-            await context.reply(f"I couldn't process that request: {exc}")
+            err_msg = str(exc).strip()
+            reason = f": {err_msg}" if err_msg else ""
+            await context.reply(f"I couldn't process that request{reason}")
 
         except USGSNotFoundError as exc:
+            outcome = "error"
             logger.info("No data found for request %r: %s", request, exc)
-            await context.reply(f"I couldn't find any USGS data for that request: {exc}")
+            err_msg = str(exc).strip()
+            reason = f": {err_msg}" if err_msg else ""
+            await context.reply(f"I couldn't find any USGS data for that request{reason}")
 
         except SamplesRateLimitError as exc:
+            outcome = "error"
             logger.warning("USGS Samples API rate limit reached for request %r: %s", request, exc)
             await context.reply(
                 "The USGS API rate limit was temporarily reached. Please try your request again in a few moments."
             )
 
         except (USGSServiceError, SamplesError) as exc:
-            logger.error("USGS service error for request %r: %s", request, exc)
-            await context.reply(
-                f"The USGS service encountered an error processing that request: {exc}"
-            )
+            if isinstance(getattr(exc, "__cause__", None), httpx.TimeoutException):
+                outcome = "deadline"
+                _trigger_warmup()
+                await context.reply(
+                    "USGS is waking up or responding slowly right now, so I couldn't finish in time. Please ask again in a minute or two."
+                )
+            else:
+                outcome = "error"
+                logger.error("USGS service error for request %r: %s", request, exc)
+                err_msg = str(exc).strip()
+                reason = f": {err_msg}" if err_msg else ""
+                await context.reply(
+                    f"The USGS service encountered an error processing that request{reason}"
+                )
+
+        except asyncio.CancelledError:
+            raise
 
         except Exception:
+            outcome = "error"
             logger.exception("Unexpected error handling request %r", request)
             await context.reply(
                 "Something went wrong while processing your request. This has been logged for investigation."
+            )
+
+        finally:
+            elapsed_s = time.monotonic() - start_time
+            resolved_intent = current_intent.get()
+            if resolved_intent and resolved_intent != "unknown":
+                intent = resolved_intent
+            logger.info(
+                "request_id=%s intent=%s elapsed_s=%.1f outcome=%s",
+                request_id, intent, elapsed_s, outcome
             )
 
     @property
@@ -189,6 +252,10 @@ class USGSWaterAgent(IChatBioAgent):
             ctx = RequestContext(request_id=str(uuid.uuid4()))
             ctx.ichatbio_process = process
             plan = await self.query_planner.plan(request, ctx)
+
+            if plan.intent:
+                intent_val = plan.intent.value if hasattr(plan.intent, "value") else str(plan.intent)
+                current_intent.set(intent_val)
 
             if plan.semantic:
                 await process.log(

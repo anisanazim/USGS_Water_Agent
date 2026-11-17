@@ -58,6 +58,11 @@ class WaterAgentSettings(BaseSettings):
     )
 
     # Timeouts & Retries
+    request_deadline_seconds: float = Field(
+        default=55.0,
+        validation_alias="REQUEST_DEADLINE_SECONDS",
+        description="Overall request deadline in seconds",
+    )
     request_timeout_seconds: float = Field(
         default=15.0,
         validation_alias="USGS_REQUEST_TIMEOUT",
