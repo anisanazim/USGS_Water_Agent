@@ -15,6 +15,7 @@ from water_agent.fetchers.samples_fetcher import (
 )
 from water_agent.handlers.common import (
     format_date_for_display,
+    format_family_name,
     format_window_error,
     resolve_handler_temporal_window,
 )
@@ -170,7 +171,8 @@ async def handle_observation(
         if is_exact_pcode or len(query_codes) <= 1:
             subject_desc = f"{discrete_param.descriptor} ({param_code}), {discrete_param.unit_of_measure}"
         else:
-            subject_desc = f"{family_obj.name.capitalize() if family_obj else discrete_param.descriptor}"
+            fam_disp = format_family_name(family_obj.name) if family_obj else discrete_param.descriptor
+            subject_desc = f"{fam_disp.capitalize() if family_obj else discrete_param.descriptor}"
 
         artifact_id = uuid.uuid4().hex
         artifact_content = {
@@ -214,7 +216,7 @@ async def handle_observation(
         response_text = (
             f"Found **{samples_res.total_count:,}** discrete records of {subject_desc}{loc_info}.\n\n"
             f"{interp_prefix}"
-            f"First 10 observations:\n\n"
+            f"Most recent 10 observations:\n\n"
             f"| Date | Time | Value | Unit | Parameter Code | Descriptor |\n"
             f"| :--- | :--- | :--- | :--- | :--- | :--- |\n"
         )

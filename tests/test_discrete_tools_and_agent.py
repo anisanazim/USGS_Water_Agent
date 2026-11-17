@@ -584,7 +584,7 @@ async def test_shape_2d_values_query_table_and_disclosures():
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
     assert "Found **14** discrete records of Calcium, water, filtered (00915), mg/l" in reply_text
-    assert "First 10 observations:" in reply_text
+    assert "Most recent 10 observations:" in reply_text
     assert "| Date | Time | Value | Unit | Parameter Code | Descriptor |" in reply_text
     assert "Full result set of 14 records saved to artifact" in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text

@@ -10,8 +10,12 @@ def test_default_settings():
     s = WaterAgentSettings()
     assert s.usgs_api_version == "v0"
     assert s.request_timeout_seconds == 15.0
-    assert s.samples_timeout_seconds == 45.0
-    assert s.max_attempts == 3
+    assert s.samples_timeout_seconds == 50.0
+    assert s.max_attempts == 2
+    assert s.request_deadline_seconds == 55.0
+    assert s.max_warmups == 3
+    assert s.keepwarm_enabled is True
+    assert s.keepwarm_interval_seconds == 300.0
     assert s.openai_model == "gpt-5.6-luna"
     assert s.full_ogc_base_url == "https://api.waterdata.usgs.gov/ogcapi/v0"
 

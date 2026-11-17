@@ -5,7 +5,10 @@ import uuid
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
-from water_agent.handlers.common import append_temporal_not_applied_note
+from water_agent.handlers.common import (
+    append_temporal_not_applied_note,
+    format_family_name,
+)
 from water_agent.metadata.discrete_families import get_parameter
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
@@ -47,7 +50,8 @@ async def handle_spatial(
             geo_parts.append(plan.semantic["state"])
         geo_str = f" in {', '.join(geo_parts)}" if geo_parts else ""
 
-        reply_msg = f"I found no USGS monitoring locations for {family_name}{geo_str}."
+        disp_family = format_family_name(family_name)
+        reply_msg = f"I found no USGS monitoring locations for {disp_family}{geo_str}."
         if stored.provenance.get("mixed_modality") or stored.items.get("mixed_modality"):
             reply_msg += (
                 "\n\nNote: This query searched discrete water quality laboratory samples. "
@@ -64,10 +68,11 @@ async def handle_spatial(
         desc = param_obj.descriptor if param_obj else stored.items.get("family", "discrete parameter")
         pcodes = stored.items.get("pcodes") or stored.provenance.get("pcodes") or ([pcode] if pcode else [])
         family_name = stored.items.get("family") or stored.provenance.get("family") or desc
+        disp_family = format_family_name(family_name)
         breakdown = stored.items.get("pcode_breakdown") or stored.provenance.get("pcode_breakdown") or []
 
         response_text = (
-            f"Found **{len(stations):,}** distinct monitoring locations for {family_name}.\n"
+            f"Found **{len(stations):,}** distinct monitoring locations for {disp_family}.\n"
             f"Stations monitoring multiple forms appear once in this total.\n\n"
         )
 

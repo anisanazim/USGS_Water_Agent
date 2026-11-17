@@ -9,7 +9,10 @@ from typing import Any
 
 from ichatbio.agent_response import ResponseContext
 from water_agent.fetchers.samples_fetcher import USGSSamplesFetcher
-from water_agent.handlers.common import resolve_handler_temporal_window
+from water_agent.handlers.common import (
+    format_family_name,
+    resolve_handler_temporal_window,
+)
 from water_agent.metadata.discrete_families import (
     DISCRETE_FAMILIES,
     INORGANIC_CARBON_UNSUPPORTED_MSG,
@@ -180,8 +183,9 @@ async def handle_parameter_count(
 
     pcodes, family_name, meta_list = extract_pcodes_and_family(plan, request)
     if not pcodes:
+        disp_family = format_family_name(family_name) if family_name else "requested parameter"
         await context.reply(
-            f"I could not determine the specific USGS parameter codes for '{family_name}' at {station_id}. "
+            f"I could not determine the specific USGS parameter codes for '{disp_family}' at {station_id}. "
             "Please specify a parameter name (e.g. phosphorus, calcium, nitrate) or a 5-digit USGS parameter code."
         )
         return
@@ -247,6 +251,7 @@ async def handle_parameter_count(
                         breakdown_by_pcode[m["pcode"]] = itm["count"]
 
     interp_block = f"{spec.format_interpretation()}\n\n" if spec is not None else ""
+    disp_family = format_family_name(family_name)
 
     # Build user-facing response
     if len(pcodes) == 1:
@@ -259,7 +264,7 @@ async def handle_parameter_count(
         )
     else:
         response_text = (
-            f"Found **{total_count:,}** total discrete measurements for **{family_name}** at **{station_id}**.\n\n"
+            f"Found **{total_count:,}** total discrete measurements for **{disp_family}** at **{station_id}**.\n\n"
             f"{interp_block}"
             f"Constituent parameter codes included in this query:\n\n"
         )
@@ -286,7 +291,7 @@ async def handle_parameter_count(
     # Add next-step guidance
     response_text += "---\n"
     response_text += f"- To check the count of an individual parameter code, ask: *'How many records of {pcodes[0]} at {station_id}?'*\n"
-    response_text += f"- To view the actual numerical measurements, ask: *'Show me the {family_name} values at {station_id}'* (which queries `/results/narrow`).\n\n"
+    response_text += f"- To view the actual numerical measurements, ask: *'Show me the {disp_family} values at {station_id}'* (which queries `/results/narrow`).\n\n"
     response_text += "Modality: discrete sample measurements (not continuous sensors).\n"
     response_text += "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
 
@@ -306,7 +311,7 @@ async def handle_parameter_count(
     }
     await process.create_artifact(
         mimetype="application/json",
-        description=f"USGS Discrete Parameter Counts: {family_name} at {station_id}",
+        description=f"USGS Discrete Parameter Counts: {disp_family} at {station_id}",
         content=json.dumps(artifact_payload, indent=2).encode("utf-8"),
         metadata={
             "count": total_count,

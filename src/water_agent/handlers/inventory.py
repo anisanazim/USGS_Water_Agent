@@ -8,6 +8,7 @@ from ichatbio.agent_response import ResponseContext
 from water_agent.handlers.common import (
     append_temporal_not_applied_note,
     format_date_for_display,
+    format_family_name,
 )
 from water_agent.metadata.discrete_families import get_parameter, resolve_discrete_parameter
 from water_agent.query_planner import QueryPlan
@@ -80,9 +81,10 @@ async def handle_inventory(
                         })
 
             matching_rows.sort(key=lambda x: x["count"], reverse=True)
+            disp_family = format_family_name(family_name)
 
             if matching_rows:
-                response_text = f"Found discrete {family_name} measurements at **{station_id_str}**:\n\n"
+                response_text = f"Found discrete {disp_family} measurements at **{station_id_str}**:\n\n"
                 for r in matching_rows:
                     p_part = f"**{r['pcode']}**: " if r.get("pcode") else ""
                     u_part = f" ({r['unit']})" if r.get("unit") else ""
@@ -93,13 +95,13 @@ async def handle_inventory(
                     active_pcodes = {r['pcode'] for r in matching_rows if r.get('pcode')}
                     zero_pcodes = [p for p in param_resolve.family.parameters if p not in active_pcodes]
                     if zero_pcodes:
-                        response_text += f"\n*(Remaining {len(zero_pcodes)} {family_name} parameter codes have 0 observations at this station.)*\n"
+                        response_text += f"\n*(Remaining {len(zero_pcodes)} {disp_family} parameter codes have 0 observations at this station.)*\n"
 
                 response_text += "\nModality: discrete sample measurements (not continuous sensors).\n"
                 response_text += "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
             else:
                 await process.log(f"Parameter code {requested_param_code} not found at station.")
-                response_text = f"I couldn't find any discrete {family_name} observations at this station."
+                response_text = f"I couldn't find any discrete {disp_family} observations at this station."
     else:
         # General station inventory (Workflow 2)
         sections = []

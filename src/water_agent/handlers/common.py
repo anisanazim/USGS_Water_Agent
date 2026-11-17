@@ -22,6 +22,28 @@ def format_date_for_display(val: str | None) -> str:
     return val_str
 
 
+FAMILY_DISPLAY_NAMES: dict[str, str] = {
+    "dissolved_oxygen": "dissolved oxygen",
+    "organic_carbon": "organic carbon",
+    "chlorophyll_a": "chlorophyll a",
+    "turbidity_tss": "turbidity/TSS",
+    "total_nitrogen": "total nitrogen",
+    "electrical_conductivity": "electrical conductivity",
+    "ph": "pH",
+}
+
+
+def format_family_name(name: str | None) -> str:
+    """Format a parameter family key (e.g. 'dissolved_oxygen') as a readable name ('dissolved oxygen')."""
+    if not name:
+        return ""
+    cleaned = str(name).strip()
+    lowered = cleaned.lower()
+    if lowered in FAMILY_DISPLAY_NAMES:
+        return FAMILY_DISPLAY_NAMES[lowered]
+    return cleaned.replace("_", " ")
+
+
 def format_window_error(exc: Exception) -> str:
     """Format a DateParseError or TemporalResolutionError as a clear user-facing reply."""
     if isinstance(exc, DateParseError):

@@ -9,6 +9,18 @@ from usgs_water_data import USGSServiceError, USGSValidationError, USGSNotFoundE
 from water_agent.fetchers.samples_fetcher import SamplesError
 
 
+@pytest.fixture(autouse=True)
+def isolate_keepwarm():
+    from water_agent.keepwarm import stop_keepwarm_loop, _WARMING
+
+    stop_keepwarm_loop()
+    _WARMING.clear()
+    with patch("water_agent.config.settings.keepwarm_enabled", False):
+        yield
+    stop_keepwarm_loop()
+    _WARMING.clear()
+
+
 @pytest.fixture
 def mock_context():
     ctx = MagicMock()
@@ -19,14 +31,16 @@ def mock_context():
 @pytest.mark.asyncio
 async def test_deadline_timeout_slow_usgs_reply_and_log(mock_context, caplog):
     agent = USGSWaterAgent()
+    from water_agent.keepwarm import last_samples_target
 
     async def slow_handler(context, request, params):
+        last_samples_target.set(("USGS-01646500", ("00300",)))
         await asyncio.sleep(0.5)
 
     mock_warmup = MagicMock()
     with patch.object(agent, "_handle_query_water_data", slow_handler):
         with patch("water_agent.config.settings.request_deadline_seconds", 0.05):
-            with patch("agent._trigger_warmup", mock_warmup):
+            with patch("water_agent.keepwarm.request_warmup", mock_warmup):
                 with caplog.at_level(logging.INFO):
                     await agent.run(mock_context, "test request", "query_water_data", None)
 
@@ -42,8 +56,9 @@ async def test_deadline_timeout_slow_usgs_reply_and_log(mock_context, caplog):
     assert "outcome=deadline" in summary_logs[-1]
     assert "elapsed_s=" in summary_logs[-1]
 
-    # Warmup trigger called
+    # Warmup trigger called with the target recorded by fetcher
     assert mock_warmup.call_count == 1
+    mock_warmup.assert_called_with("USGS-01646500", ("00300",))
 
 
 @pytest.mark.asyncio
@@ -263,16 +278,24 @@ async def test_request_warmup_random_date_and_swallow_exceptions():
 
     with patch.object(httpx.AsyncClient, "get", err_get):
         _WARMING.clear()
-        request_warmup("USGS-0423205010", ("00400",))
-        task = _WARMING.get("USGS-0423205010")
-        assert task is not None
-        # Does not raise even though client.get raised
-        await task
-        assert "USGS-0423205010" not in _WARMING
-        assert len(captured_params) == 1
-        start_date = captured_params[0]["activityStartDateLower"]
-        year = int(start_date.split("-")[0])
-        assert 1990 <= year <= 2020
+        dates = []
+        for _ in range(10):
+            request_warmup("USGS-0423205010", ("00400",))
+            task = _WARMING.get("USGS-0423205010")
+            assert task is not None
+            # Does not raise even though client.get raised
+            await task
+            assert "USGS-0423205010" not in _WARMING
+
+        assert len(captured_params) == 10
+        for p in captured_params:
+            start_date = p["activityStartDateLower"]
+            dates.append(start_date)
+            year = int(start_date.split("-")[0])
+            assert 1990 <= year <= 2020
+
+        # Pings use different random start dates
+        assert len(set(dates)) > 1
 
 
 @pytest.mark.asyncio
@@ -325,3 +348,70 @@ def test_keepwarm_targets_parsing():
     # Settings env parsing with semicolon-separated entries
     s = WaterAgentSettings(KEEPWARM_TARGETS="STA-1:00400;STA-2:00060,00065")
     assert s.keepwarm_targets == ["STA-1:00400", "STA-2:00060,00065"]
+
+
+def test_format_family_name_helper():
+    from water_agent.handlers.common import format_family_name
+
+    assert format_family_name("dissolved_oxygen") == "dissolved oxygen"
+    assert format_family_name("organic_carbon") == "organic carbon"
+    assert format_family_name("turbidity_tss") == "turbidity/TSS"
+    assert format_family_name("chlorophyll_a") == "chlorophyll a"
+    assert format_family_name("ph") == "pH"
+    assert format_family_name("calcium") == "calcium"
+    assert format_family_name("total_nitrogen") == "total nitrogen"
+    assert format_family_name("custom_param_name") == "custom param name"
+    assert format_family_name(None) == ""
+
+
+@pytest.mark.asyncio
+async def test_observation_heading_and_family_display_name(mock_context):
+    from water_agent.handlers.observation import handle_observation
+    from water_agent.query_planner import QueryPlan
+    from water_agent.results import RequestContext
+
+    mock_samples_res = MagicMock()
+    mock_samples_res.source_urls = ["https://example.com/narrow"]
+    mock_samples_res.total_count = 15
+    mock_samples_res.handle = None
+    mock_samples_res.records = [
+        {"activity_date": f"2022-01-{i:02d}", "result_value": 8.0 + i * 0.1, "pcode": "00300"}
+        for i in range(1, 16)
+    ]
+
+    mock_samples_fetcher = MagicMock()
+    mock_samples_fetcher.fetch_results = AsyncMock(return_value=mock_samples_res)
+
+    plan = QueryPlan(
+        intent="observation",
+        filters={"monitoring_location_id": "USGS-01646500", "parameter_code": "dissolved_oxygen"},
+    )
+    ctx = RequestContext(request_id="test-obs")
+    process = MagicMock()
+    process.log = AsyncMock()
+    process.create_artifact = AsyncMock()
+
+    await handle_observation(
+        mock_context,
+        process,
+        plan,
+        ctx,
+        samples_fetcher=mock_samples_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_text = mock_context.reply.call_args[0][0]
+
+    # Heading check
+    assert "Most recent 10 observations:" in reply_text
+    assert "First 10 observations:" not in reply_text
+
+    # Readable family name check (no underscores like dissolved_oxygen)
+    assert "Dissolved oxygen" in reply_text
+    assert "dissolved_oxygen" not in reply_text
+
+    # Artifact description check
+    assert process.create_artifact.called
+    artifact_desc = process.create_artifact.call_args.kwargs["description"]
+    assert "Dissolved oxygen" in artifact_desc
+    assert "dissolved_oxygen" not in artifact_desc

@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
-from water_agent.handlers.common import format_date_for_display
+from water_agent.handlers.common import format_date_for_display, format_family_name
 from water_agent.metadata.discrete_families import (
     DISCRETE_FAMILIES,
     get_parameter,
@@ -118,7 +118,7 @@ async def handle_clarification(
         station_candidates.sort(key=lambda x: x["count"], reverse=True)
 
         if station_candidates and param_resolve and param_resolve.family:
-            disp_name = family_name or "discrete"
+            disp_name = format_family_name(family_name) if family_name else "discrete"
             st_str = f"**{station_id}**" if station_id else "this station"
             reply_text = f"Found discrete {disp_name} measurements at {st_str}:\n\n"
             for c in station_candidates:
@@ -138,7 +138,7 @@ async def handle_clarification(
             return
 
         if station_candidates:
-            disp_name = family_name or "requested"
+            disp_name = format_family_name(family_name) if family_name else "requested"
             st_str = f"**{station_id}**" if station_id else "this station"
             reply_text = f"Found data for {disp_name} at {st_str}:\n\n"
             for c in station_candidates[:6]:
