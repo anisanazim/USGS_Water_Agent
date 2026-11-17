@@ -69,12 +69,12 @@ class WaterAgentSettings(BaseSettings):
         description="Timeout for continuous OGC API requests in seconds",
     )
     samples_timeout_seconds: float = Field(
-        default=45.0,
+        default=50.0,
         validation_alias="USGS_SAMPLES_TIMEOUT",
         description="Timeout for discrete samples API requests in seconds",
     )
     max_attempts: int = Field(
-        default=3,
+        default=2,
         validation_alias="USGS_MAX_ATTEMPTS",
         description="Maximum retry attempts for transient errors",
     )

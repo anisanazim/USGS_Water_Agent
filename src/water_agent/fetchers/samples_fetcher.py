@@ -27,7 +27,7 @@ from water_agent.results.store import ResultHandle
 logger = logging.getLogger(__name__)
 
 SAMPLES_BASE_URL = "https://api.waterdata.usgs.gov/samples-data"
-DEFAULT_SAMPLES_TIMEOUT = 45.0
+DEFAULT_SAMPLES_TIMEOUT = 50.0
 MAX_LOCATIONS_THRESHOLD = 5000
 MAX_RESULTS_THRESHOLD = 25000
 STREAM_MAX_ROWS = 25000
@@ -178,7 +178,7 @@ class USGSSamplesFetcher:
     def __init__(
         self,
         base_url: str = SAMPLES_BASE_URL,
-        timeout: float = DEFAULT_SAMPLES_TIMEOUT,
+        timeout: float | None = None,
         max_locations_threshold: int = MAX_LOCATIONS_THRESHOLD,
         max_results_threshold: int = MAX_RESULTS_THRESHOLD,
         stream_max_rows: int = STREAM_MAX_ROWS,
@@ -186,8 +186,9 @@ class USGSSamplesFetcher:
         client: httpx.AsyncClient | None = None,
         counties_reference_path: str | None = None,
     ):
+        from water_agent.config import settings
         self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else settings.samples_timeout_seconds
         if max_records is not None:
             max_results_threshold = max_records
         self.max_locations_threshold = max_locations_threshold
@@ -273,7 +274,8 @@ class USGSSamplesFetcher:
         from water_agent.tracing import start_span
         async with start_span("usgs_samples.http_get", attributes={"http.url": url, "http.method": "GET"}) as span:
             async def _do():
-                max_attempts = 4
+                from water_agent.config import settings
+                max_attempts = settings.max_attempts
                 last_exc: Exception | None = None
                 client = self._ensure_client()
                 for attempt in range(1, max_attempts + 1):
@@ -281,11 +283,21 @@ class USGSSamplesFetcher:
                         resp = await client.get(url, params=params, timeout=self.timeout)
                     except (httpx.TimeoutException, httpx.TransportError) as exc:
                         last_exc = exc
-                        logger.warning("USGS Samples request error (attempt %d/%d) url=%s: %s", attempt, max_attempts, url, exc)
+                        logger.warning(
+                            "USGS Samples request error (attempt %d/%d) %s url=%s",
+                            attempt, max_attempts, type(exc).__name__, httpx.URL(url, params=params),
+                        )
+                        if isinstance(exc, httpx.ReadTimeout):
+                            raise SamplesError(f"USGS did not respond in time ({type(exc).__name__})") from exc
                         if attempt < max_attempts:
                             await asyncio.sleep(1.0 * (2 ** (attempt - 1)))
                             continue
-                        raise SamplesError(f"USGS Samples request failed: {exc}") from exc
+                        err_msg = (
+                            f"USGS did not respond in time ({type(exc).__name__})"
+                            if isinstance(exc, httpx.TimeoutException)
+                            else f"USGS Samples request failed ({type(exc).__name__}): {exc}"
+                        )
+                        raise SamplesError(err_msg) from exc
 
                     span.set_attribute("http.status_code", resp.status_code)
                     if resp.status_code == 429:
