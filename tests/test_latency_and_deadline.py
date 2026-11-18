@@ -401,12 +401,13 @@ async def test_observation_heading_and_family_display_name(mock_context):
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
 
-    # GBIF-style complete reply check (no partial table or mixed-modality prompt)
-    assert "Retrieved **all 15** matching discrete records" in reply_text
+    # GBIF-style complete reply check (15 <= inline_items_max -> all 15 inlined, no partial heading)
+    assert "Retrieved **all 15** records" in reply_text
     assert "This is the complete result; nothing was truncated." in reply_text
     assert "Most recent 10 observations:" not in reply_text
-    assert "| Date | Time |" not in reply_text
     assert "Continuous sensor data is also available" not in reply_text
+    assert "| Date | Time | Value | Unit | Parameter Code |" in reply_text
+    assert "2022-01-01" in reply_text and "2022-01-15" in reply_text
 
     # Readable family name check (no underscores like dissolved_oxygen)
     assert "Dissolved oxygen" in reply_text
@@ -460,10 +461,11 @@ async def test_observation_reply_flags_incomplete_result(mock_context):
     reply_text = mock_context.reply.call_args[0][0]
     reply_data = mock_context.reply.call_args.kwargs["data"]
 
-    assert "Retrieved **5 of 9** matching discrete records" in reply_text
+    assert "Retrieved **5 of 9** records" in reply_text
     assert "The result is incomplete: Some date ranges could not be retrieved." in reply_text
     assert "This is the complete result" not in reply_text
     assert reply_data["result"]["complete"] is False
+    assert reply_data["result"]["items_inlined"] is False
 
 
 @pytest.mark.asyncio

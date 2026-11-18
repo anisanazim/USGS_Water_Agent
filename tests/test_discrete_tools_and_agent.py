@@ -183,7 +183,7 @@ async def test_agent_routes_discrete_parameter_to_samples():
     # Verify context reply and contract
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Retrieved **all 1** matching discrete records of Calcium, water, filtered (00915), mg/l" in reply_text
+    assert "Retrieved **all 1** records of Calcium, water, filtered (00915), mg/l" in reply_text
     assert "2023-06-01" in reply_text
     assert "18.5" in mock_process.create_artifact.call_args.kwargs["content"].decode()
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
@@ -587,12 +587,13 @@ async def test_shape_2d_values_query_table_and_disclosures():
         "USGS discrete observations - Calcium, water, filtered (00915), mg/l "
         "at USGS-0423205010, all dates (14 records)"
     )
-    assert "Retrieved **all 14** matching discrete records of Calcium, water, filtered (00915), mg/l" in reply_text
+    assert "Retrieved **all 14** records of Calcium, water, filtered (00915), mg/l" in reply_text
     assert "This is the complete result; nothing was truncated." in reply_text
     assert "Sample dates range from 2023-05-01 to 2023-05-14." in reply_text
     assert expected_desc in reply_text
     assert mock_process.create_artifact.call_args.kwargs["description"] == expected_desc
-    assert "| Date | Time |" not in reply_text
+    assert "| Date | Time | Value | Unit | Parameter Code |" in reply_text
+    assert "2023-05-01" in reply_text and "2023-05-14" in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
     assert "Sample media: Water (samples in other media such as sediment/tissue are excluded)." in reply_text
     assert mock_context.reply.call_args.kwargs["data"]["result"] == {
@@ -600,6 +601,7 @@ async def test_shape_2d_values_query_table_and_disclosures():
         "retrieved": 14,
         "complete": True,
         "artifact_description": expected_desc,
+        "items_inlined": True,
     }
 
 

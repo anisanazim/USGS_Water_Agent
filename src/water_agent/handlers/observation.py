@@ -14,10 +14,12 @@ from water_agent.fetchers.samples_fetcher import (
     validate_datetime_interval,
 )
 from water_agent.handlers.common import (
+    format_date_for_display,
     format_family_name,
     format_window_error,
     resolve_handler_temporal_window,
 )
+from water_agent.handlers.reply_utils import ResultSummary, send_result
 from water_agent.metadata.discrete_families import (
     INORGANIC_CARBON_UNSUPPORTED_MSG,
     get_parameter,
@@ -165,7 +167,6 @@ async def handle_observation(
             )
             return
 
-        loc_info = f" at **{plan.filters['monitoring_location_id']}**" if plan.filters.get("monitoring_location_id") else ""
         if is_exact_pcode or len(query_codes) <= 1:
             subject_desc = f"{discrete_param.descriptor} ({param_code}), {discrete_param.unit_of_measure}"
         else:
@@ -173,19 +174,35 @@ async def handle_observation(
             subject_desc = f"{fam_disp.capitalize() if family_obj else discrete_param.descriptor}"
 
         artifact_id = uuid.uuid4().hex
-        retrieved_count = len(samples_res.records)
-        _warning = getattr(samples_res, "warning", None)
-        fetch_warning = _warning if isinstance(_warning, str) and _warning.strip() else None
-        is_complete = retrieved_count >= samples_res.total_count and not fetch_warning
-        station_plain = plan.filters.get("monitoring_location_id") or "the requested area"
+        scope = plan.filters.get("monitoring_location_id") or "the requested area"
         window_desc = (
             f"{date_lower or 'earliest'} to {date_upper or 'latest'}"
-            if (date_lower or date_upper) else "all dates"
+            if (date_lower or date_upper)
+            else None
         )
-        artifact_description = (
-            f"USGS discrete observations - {subject_desc} at {station_plain}, "
-            f"{window_desc} ({retrieved_count:,} records)"
+
+        dated = sorted(r["activity_date"] for r in samples_res.records if r.get("activity_date"))
+        highlights = [f"Sample dates range from {dated[0]} to {dated[-1]}."] if dated else []
+
+        sorted_records = sorted(
+            samples_res.records,
+            key=lambda x: (x.get("activity_date") or "", x.get("activity_time") or ""),
+            reverse=True,
         )
+        inline_header = (
+            "| Date | Time | Value | Unit | Parameter Code |\n"
+            "| :--- | :--- | :--- | :--- | :--- |"
+        )
+        inline_items: list[str] = []
+        for r in sorted_records:
+            d = format_date_for_display(r.get("activity_date")) or "--"
+            t = r.get("activity_time") or "--"
+            v = r.get("result_value")
+            val_str = f"{v:g}" if isinstance(v, (int, float)) else str(v if v is not None else "--")
+            row_pcode = r.get("pcode") or param_code
+            row_param = get_parameter(row_pcode)
+            u = r.get("unit") or (row_param.unit_of_measure if row_param else discrete_param.unit_of_measure)
+            inline_items.append(f"| {d} | {t} | {val_str} | {u} | {row_pcode} |")
 
         artifact_content = {
             "source_urls": samples_res.source_urls,
@@ -199,63 +216,42 @@ async def handle_observation(
             "summary": samples_res.handle.summary if samples_res.handle else None,
             "records": samples_res.records,
         }
-        await process.create_artifact(
-            mimetype="application/json",
-            description=artifact_description,
-            content=json.dumps(artifact_content, indent=2).encode("utf-8"),
-            metadata={
-                "count": samples_res.total_count,
-                "pcode": param_code,
-                "pcodes": query_codes if query_codes else [param_code],
-                "modality": "discrete",
-                "source_urls": samples_res.source_urls,
-                "retrieved_at": artifact_content["retrieved_at"],
-                "artifact_id": artifact_id,
-                "date_lower": date_lower,
-                "date_upper": date_upper,
-                "temporal": temporal_meta,
-            },
+        artifact_metadata = {
+            "count": samples_res.total_count,
+            "pcode": param_code,
+            "pcodes": query_codes if query_codes else [param_code],
+            "modality": "discrete",
+            "source_urls": samples_res.source_urls,
+            "retrieved_at": artifact_content["retrieved_at"],
+            "artifact_id": artifact_id,
+            "date_lower": date_lower,
+            "date_upper": date_upper,
+            "temporal": temporal_meta,
+        }
+
+        summary = ResultSummary(
+            kind_label="discrete observations",
+            subject=subject_desc,
+            scope=scope,
+            unit_label="records",
+            total_available=samples_res.total_count,
+            retrieved=len(samples_res.records),
+            window=window_desc,
+            warning=getattr(samples_res, "warning", None),
+            interpretation=spec.format_interpretation() if spec is not None else None,
+            highlights=highlights,
+            inline_header=inline_header,
+            inline_items=inline_items,
+            notes=[
+                "Modality: discrete sample measurements (not continuous sensors). "
+                "This agent currently returns discrete samples only.",
+                "Sample media: Water (samples in other media such as sediment/tissue are excluded).",
+            ],
         )
+
+        await send_result(context, process, plan, summary, artifact_content, artifact_metadata)
         if samples_res.handle:
             ctx.store.set_artifact_id(samples_res.handle.ref, artifact_id)
-
-        dated = sorted(r["activity_date"] for r in samples_res.records if r.get("activity_date"))
-        span_text = f" Sample dates range from {dated[0]} to {dated[-1]}." if dated else ""
-
-        # GBIF-agent style: no partial table in the reply (a partial table reads as truncated output
-        # to the iChatBio assistant and makes it re-query). State exactly what was retrieved and point
-        # to the artifact, which holds every record.
-        if is_complete:
-            status_text = (
-                f"Retrieved **all {retrieved_count:,}** matching discrete records of {subject_desc}{loc_info}. "
-                f"This is the complete result; nothing was truncated.{span_text}\n\n"
-            )
-        else:
-            status_text = (
-                f"Retrieved **{retrieved_count:,} of {samples_res.total_count:,}** matching discrete records of "
-                f"{subject_desc}{loc_info}. The result is incomplete"
-                f"{': ' + fetch_warning if fetch_warning else ''}.{span_text}\n\n"
-            )
-
-        response_text = (
-            f"{status_text}"
-            f"{interp_prefix}"
-            f"All {retrieved_count:,} retrieved records (date, time, value, unit, parameter code) are in the "
-            f"artifact created in this step: \"{artifact_description}\". "
-            f"Read that artifact to show the records; splitting the date range will not return additional records.\n\n"
-            "Modality: discrete sample measurements (not continuous sensors). "
-            "This agent currently returns discrete samples only.\n"
-            "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
-        )
-
-        reply_data = plan.model_dump()
-        reply_data["result"] = {
-            "total_available": samples_res.total_count,
-            "retrieved": retrieved_count,
-            "complete": is_complete,
-            "artifact_description": artifact_description,
-        }
-        await context.reply(response_text, data=reply_data)
         return
 
     # 2. Continuous Daily Values Path (Workflow 5)
