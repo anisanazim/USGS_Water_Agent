@@ -457,7 +457,7 @@ async def test_spatial_handler_appends_temporal_note_without_failing():
     )
     await handle_spatial(mc1, mp1, plan1, ctx1)
     reply1 = mc1.reply.call_args[0][0]
-    assert "Found **1** distinct monitoring locations" in reply1
+    assert "Retrieved **all 1** stations of calcium" in reply1
     assert expected_note in reply1
 
     # 2. With temporal_error on 0-station discovery -> does not fail, appends note

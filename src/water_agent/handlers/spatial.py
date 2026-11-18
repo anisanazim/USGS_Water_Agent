@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any
 
@@ -8,10 +7,47 @@ from ichatbio.agent_response import ResponseContext
 from water_agent.handlers.common import (
     append_temporal_not_applied_note,
     format_family_name,
+    temporal_not_applied_notes,
 )
+from water_agent.handlers.reply_utils import ResultSummary, send_result
 from water_agent.metadata.discrete_families import get_parameter
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
+
+
+def _format_station_line(item: Any) -> str:
+    if isinstance(item, dict):
+        sid = item.get("id") or item.get("location_id") or ""
+        parts = []
+        name = item.get("name") or item.get("location_name")
+        if name:
+            parts.append(str(name))
+        stype = item.get("site_type")
+        if stype:
+            parts.append(str(stype))
+        county = item.get("county") or item.get("county_name")
+        if county:
+            parts.append(str(county))
+        details = f" - {', '.join(parts)}" if parts else ""
+        return f"- `{sid}`{details}"
+    return f"- `{item}`"
+
+
+def _resolve_spatial_scope(plan: QueryPlan) -> str:
+    geo_parts = []
+    if plan.semantic.get("county"):
+        geo_parts.append(str(plan.semantic["county"]))
+    if plan.semantic.get("state"):
+        geo_parts.append(str(plan.semantic["state"]))
+    if geo_parts:
+        return ", ".join(geo_parts)
+    if plan.filters.get("county_code") and plan.filters.get("state_code"):
+        return f"county {plan.filters['county_code']}, state {plan.filters['state_code']}"
+    if plan.filters.get("state_code"):
+        return f"state {plan.filters['state_code']}"
+    if plan.filters.get("monitoring_location_id"):
+        return str(plan.filters["monitoring_location_id"])
+    return "the requested area"
 
 
 async def handle_spatial(
@@ -62,85 +98,45 @@ async def handle_spatial(
         await context.reply(reply_msg, data=plan.model_dump())
         return
 
+    pcode = plan.filters.get("parameter_code")
+    scope = _resolve_spatial_scope(plan)
+    breakdown: list[dict[str, Any]] = []
+    highlights: list[str] = []
+    notes: list[str] = []
+
     if is_discrete:
-        pcode = plan.filters.get("parameter_code")
         param_obj = get_parameter(pcode) if pcode else None
         desc = param_obj.descriptor if param_obj else stored.items.get("family", "discrete parameter")
         pcodes = stored.items.get("pcodes") or stored.provenance.get("pcodes") or ([pcode] if pcode else [])
         family_name = stored.items.get("family") or stored.provenance.get("family") or desc
-        disp_family = format_family_name(family_name)
+        subject = format_family_name(family_name)
         breakdown = stored.items.get("pcode_breakdown") or stored.provenance.get("pcode_breakdown") or []
 
-        response_text = (
-            f"Found **{len(stations):,}** distinct monitoring locations for {disp_family}.\n"
-            f"Stations monitoring multiple forms appear once in this total.\n\n"
-        )
-
+        highlights.append("Stations monitoring multiple forms appear once in this total.")
         if breakdown:
-            response_text += "Breakdown by parameter code:\n"
+            highlights.append("Breakdown by parameter code:")
             for b in breakdown:
                 u_str = f" ({b['unit']})" if b.get("unit") else ""
-                response_text += f"- **{b['pcode']}**: {b['descriptor']}{u_str} — {b['station_count']:,} stations\n"
-            response_text += "\n"
+                highlights.append(
+                    f"- **{b['pcode']}**: {b['descriptor']}{u_str} — {b['station_count']:,} stations"
+                )
 
-        response_text += "Monitoring locations:\n\n"
-
-        def get_station_id(item):
-            return (item.get("id") or item.get("location_id")) if isinstance(item, dict) else item
-
-        def get_station_details(item):
-            if isinstance(item, dict):
-                parts = []
-                name = item.get("name") or item.get("location_name")
-                if name:
-                    parts.append(name)
-                stype = item.get("site_type")
-                if stype:
-                    parts.append(stype)
-                county = item.get("county") or item.get("county_name")
-                if county:
-                    parts.append(county)
-                return f" - {', '.join(parts)}" if parts else ""
-            return ""
-
-        for station in stations[:50]:
-            sid = get_station_id(station)
-            details = get_station_details(station)
-            response_text += f"- `{sid}`{details}\n"
-        if len(stations) > 50:
-            response_text += f"\n*(...and {len(stations) - 50:,} more)*\n"
-
-        response_text += "\nModality: discrete sample measurements (not continuous sensors).\n"
-        if stored.items.get("mixed_modality") or stored.provenance.get("mixed_modality"):
-            response_text += "This shows discrete sample measurements. Continuous sensor data is also available for this parameter via the continuous monitoring endpoint.\n"
-        response_text += "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
+        notes.append("Modality: discrete sample measurements (not continuous sensors).")
+        notes.append("Sample media: Water (samples in other media such as sediment/tissue are excluded).")
     else:
-        response_text = f"Found **{len(stations)}** monitoring locations:\n\n"
+        pcodes = [pcode] if pcode else [""]
+        raw_subject = (
+            plan.semantic.get("parameter")
+            or (f"parameter {pcode}" if pcode else "water monitoring")
+        )
+        subject = format_family_name(raw_subject)
 
-        def get_station_id(item):
-            return item["id"] if isinstance(item, dict) else item
+    notes.extend(temporal_not_applied_notes(plan))
 
-        def get_station_details(item):
-            if isinstance(item, dict):
-                parts = []
-                if item.get("name"):
-                    parts.append(item["name"])
-                if item.get("site_type"):
-                    parts.append(item["site_type"])
-                if item.get("county"):
-                    parts.append(item["county"])
-                return f" - {', '.join(parts)}" if parts else ""
-            return ""
-
-        for station in stations[:50]:
-            sid = get_station_id(station)
-            details = get_station_details(station)
-            response_text += f"- `{sid}`{details}\n"
-        if len(stations) > 50:
-            response_text += f"\n*(...and {len(stations) - 50} more)*"
+    inline_items = [_format_station_line(station) for station in stations]
 
     artifact_id = uuid.uuid4().hex
-    artifact_content = {
+    artifact_content: dict[str, Any] = {
         "source_urls": stored.provenance.get("source_urls", []),
         "retrieved_at": stored.provenance.get("retrieved_at", ""),
         "pcodes": pcodes if is_discrete else [plan.filters.get("parameter_code", "")],
@@ -150,21 +146,28 @@ async def handle_spatial(
     if is_discrete and breakdown:
         artifact_content["pcode_breakdown"] = breakdown
 
-    await process.create_artifact(
-        mimetype="application/json",
-        description="USGS Spatial Query Results",
-        content=json.dumps(artifact_content, indent=2).encode("utf-8"),
-        metadata={
-            "count": len(stations),
-            "ref": plan.stations_ref,
-            "modality": "discrete" if is_discrete else "continuous",
-            "source_urls": stored.provenance.get("source_urls", []),
-            "pcodes": pcodes if is_discrete else [plan.filters.get("parameter_code", "")],
-            "retrieved_at": artifact_content["retrieved_at"],
-            "artifact_id": artifact_id,
-        },
-    )
-    ctx.store.set_artifact_id(plan.stations_ref, artifact_id)
+    artifact_metadata = {
+        "count": len(stations),
+        "ref": plan.stations_ref,
+        "modality": "discrete" if is_discrete else "continuous",
+        "source_urls": stored.provenance.get("source_urls", []),
+        "pcodes": pcodes if is_discrete else [plan.filters.get("parameter_code", "")],
+        "retrieved_at": artifact_content["retrieved_at"],
+        "artifact_id": artifact_id,
+    }
 
-    response_text = append_temporal_not_applied_note(response_text, plan)
-    await context.reply(response_text, data=plan.model_dump())
+    summary = ResultSummary(
+        kind_label="monitoring locations",
+        subject=subject,
+        scope=scope,
+        unit_label="stations",
+        total_available=len(stations),
+        retrieved=len(stations),
+        highlights=highlights,
+        inline_header="Monitoring locations:",
+        inline_items=inline_items,
+        notes=notes,
+    )
+
+    await send_result(context, process, plan, summary, artifact_content, artifact_metadata)
+    ctx.store.set_artifact_id(plan.stations_ref, artifact_id)

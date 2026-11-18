@@ -296,7 +296,8 @@ async def test_agent_handles_discrete_spatial_citation_contract():
 
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Found **1** distinct monitoring locations for calcium" in reply_text
+    assert "Retrieved **all 1** stations of calcium at **North Carolina**." in reply_text
+    assert "This is the complete result; nothing was truncated." in reply_text
     assert "Stations monitoring multiple forms appear once in this total" in reply_text
     assert "Primary parameter:" not in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
@@ -351,11 +352,13 @@ async def test_spatial_query_different_quantity_drops_primary_parameter():
 
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Found **1** distinct monitoring locations for nitrate" in reply_text
+    assert "Retrieved **all 1** stations of nitrate at **Wake County, North Carolina**." in reply_text
+    assert "This is the complete result; nothing was truncated." in reply_text
     assert "Stations monitoring multiple forms appear once in this total" in reply_text
     assert "Breakdown by parameter code:" in reply_text
-    # Critical requirement: No Primary parameter line
+    # Critical requirement: No Primary parameter line and no mixed-modality prompt
     assert "Primary parameter:" not in reply_text
+    assert "Continuous sensor data is also available" not in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
     assert "Sample media: Water (samples in other media such as sediment/tissue are excluded)." in reply_text
 

@@ -90,8 +90,8 @@ TEMPORAL_NOT_APPLIED_NOTE = (
 )
 
 
-def append_temporal_not_applied_note(reply_text: str, plan: Any) -> str:
-    """Append a non-fatal note when spatial/inventory plans carry a temporal constraint or error."""
+def temporal_not_applied_notes(plan: Any) -> list[str]:
+    """Return [TEMPORAL_NOT_APPLIED_NOTE] when spatial/inventory plans carry a temporal constraint or error."""
     temporal_err = getattr(plan, "temporal_error", None)
     has_error = isinstance(temporal_err, str) and bool(temporal_err.strip())
 
@@ -105,6 +105,12 @@ def append_temporal_not_applied_note(reply_text: str, plan: Any) -> str:
             for v in raw_temporal.values()
         )
 
-    if has_error or has_temporal:
-        return f"{reply_text}\n\n{TEMPORAL_NOT_APPLIED_NOTE}"
+    return [TEMPORAL_NOT_APPLIED_NOTE] if (has_error or has_temporal) else []
+
+
+def append_temporal_not_applied_note(reply_text: str, plan: Any) -> str:
+    """Append a non-fatal note when spatial/inventory plans carry a temporal constraint or error."""
+    notes = temporal_not_applied_notes(plan)
+    if notes:
+        return f"{reply_text}\n\n{notes[0]}"
     return reply_text
