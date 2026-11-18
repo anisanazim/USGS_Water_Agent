@@ -17,6 +17,7 @@ def test_default_settings(monkeypatch):
         "MAX_WARMUPS",
         "KEEPWARM_ENABLED",
         "KEEPWARM_INTERVAL_SECONDS",
+        "INLINE_ITEMS_MAX",
         "OPENAI_MODEL",
         "USGS_OGC_BASE_URL",
     ):
@@ -32,6 +33,7 @@ def test_default_settings(monkeypatch):
     assert s.max_warmups == 3
     assert s.keepwarm_enabled is True
     assert s.keepwarm_interval_seconds == 300.0
+    assert s.inline_items_max == 25
     assert s.openai_model == "gpt-5.6-luna"
     assert s.full_ogc_base_url == "https://api.waterdata.usgs.gov/ogcapi/v0"
 

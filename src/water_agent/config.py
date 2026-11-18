@@ -130,6 +130,13 @@ class WaterAgentSettings(BaseSettings):
             return [str(x).strip() for x in v if str(x).strip()]
         return v
 
+    # Reply / Output Configuration
+    inline_items_max: int = Field(
+        default=25,
+        validation_alias="INLINE_ITEMS_MAX",
+        description="Maximum number of items to inline in a reply; above this only the artifact is referenced",
+    )
+
     # Circuit Breaker Configuration
     circuit_breaker_failure_threshold: int = Field(
         default=5,
