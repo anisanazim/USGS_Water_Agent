@@ -14,7 +14,6 @@ from water_agent.fetchers.samples_fetcher import (
     validate_datetime_interval,
 )
 from water_agent.handlers.common import (
-    format_date_for_display,
     format_family_name,
     format_window_error,
     resolve_handler_temporal_window,
@@ -23,7 +22,6 @@ from water_agent.metadata.discrete_families import (
     INORGANIC_CARBON_UNSUPPORTED_MSG,
     get_parameter,
     is_inorganic_carbon_request,
-    is_mixed_modality,
     resolve_discrete_parameter,
 )
 from water_agent.metadata.registry import daily_registry
@@ -175,6 +173,20 @@ async def handle_observation(
             subject_desc = f"{fam_disp.capitalize() if family_obj else discrete_param.descriptor}"
 
         artifact_id = uuid.uuid4().hex
+        retrieved_count = len(samples_res.records)
+        _warning = getattr(samples_res, "warning", None)
+        fetch_warning = _warning if isinstance(_warning, str) and _warning.strip() else None
+        is_complete = retrieved_count >= samples_res.total_count and not fetch_warning
+        station_plain = plan.filters.get("monitoring_location_id") or "the requested area"
+        window_desc = (
+            f"{date_lower or 'earliest'} to {date_upper or 'latest'}"
+            if (date_lower or date_upper) else "all dates"
+        )
+        artifact_description = (
+            f"USGS discrete observations - {subject_desc} at {station_plain}, "
+            f"{window_desc} ({retrieved_count:,} records)"
+        )
+
         artifact_content = {
             "source_urls": samples_res.source_urls,
             "retrieved_at": datetime.now(timezone.utc).isoformat(),
@@ -189,7 +201,7 @@ async def handle_observation(
         }
         await process.create_artifact(
             mimetype="application/json",
-            description=f"USGS Discrete Observations - {subject_desc}",
+            description=artifact_description,
             content=json.dumps(artifact_content, indent=2).encode("utf-8"),
             metadata={
                 "count": samples_res.total_count,
@@ -207,39 +219,43 @@ async def handle_observation(
         if samples_res.handle:
             ctx.store.set_artifact_id(samples_res.handle.ref, artifact_id)
 
-        sorted_records = sorted(
-            [r for r in samples_res.records if r.get("activity_date")],
-            key=lambda x: (x.get("activity_date", ""), x.get("activity_time", "") or ""),
-            reverse=True,
-        )
+        dated = sorted(r["activity_date"] for r in samples_res.records if r.get("activity_date"))
+        span_text = f" Sample dates range from {dated[0]} to {dated[-1]}." if dated else ""
+
+        # GBIF-agent style: no partial table in the reply (a partial table reads as truncated output
+        # to the iChatBio assistant and makes it re-query). State exactly what was retrieved and point
+        # to the artifact, which holds every record.
+        if is_complete:
+            status_text = (
+                f"Retrieved **all {retrieved_count:,}** matching discrete records of {subject_desc}{loc_info}. "
+                f"This is the complete result; nothing was truncated.{span_text}\n\n"
+            )
+        else:
+            status_text = (
+                f"Retrieved **{retrieved_count:,} of {samples_res.total_count:,}** matching discrete records of "
+                f"{subject_desc}{loc_info}. The result is incomplete"
+                f"{': ' + fetch_warning if fetch_warning else ''}.{span_text}\n\n"
+            )
 
         response_text = (
-            f"Found **{samples_res.total_count:,}** discrete records of {subject_desc}{loc_info}.\n\n"
+            f"{status_text}"
             f"{interp_prefix}"
-            f"Most recent 10 observations:\n\n"
-            f"| Date | Time | Value | Unit | Parameter Code | Descriptor |\n"
-            f"| :--- | :--- | :--- | :--- | :--- | :--- |\n"
+            f"All {retrieved_count:,} retrieved records (date, time, value, unit, parameter code) are in the "
+            f"artifact created in this step: \"{artifact_description}\". "
+            f"Read that artifact to show the records; splitting the date range will not return additional records.\n\n"
+            "Modality: discrete sample measurements (not continuous sensors). "
+            "This agent currently returns discrete samples only.\n"
+            "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
         )
-        for r in sorted_records[:10]:
-            d = format_date_for_display(r.get("activity_date"))
-            t = r.get("activity_time") or "--"
-            v = r.get("result_value")
-            val_str = f"{v:g}" if isinstance(v, (int, float)) else str(v if v is not None else "--")
-            row_pcode = r.get("pcode") or param_code
-            row_param = get_parameter(row_pcode)
-            u = r.get("unit") or (row_param.unit_of_measure if row_param else discrete_param.unit_of_measure)
-            row_desc = row_param.descriptor if row_param else (r.get("characteristic_name") or discrete_param.descriptor)
-            response_text += f"| {d} | {t} | {val_str} | {u} | {row_pcode} | {row_desc} |\n"
 
-        if samples_res.total_count > 10:
-            response_text += f"\n*(Full result set of {samples_res.total_count:,} records saved to artifact.)*\n"
-
-        response_text += "\nModality: discrete sample measurements (not continuous sensors).\n"
-        if is_mixed_modality(param_code):
-            response_text += "This shows discrete sample measurements. Continuous sensor data is also available for this parameter via the continuous monitoring endpoint.\n"
-        response_text += "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
-
-        await context.reply(response_text, data=plan.model_dump())
+        reply_data = plan.model_dump()
+        reply_data["result"] = {
+            "total_available": samples_res.total_count,
+            "retrieved": retrieved_count,
+            "complete": is_complete,
+            "artifact_description": artifact_description,
+        }
+        await context.reply(response_text, data=reply_data)
         return
 
     # 2. Continuous Daily Values Path (Workflow 5)

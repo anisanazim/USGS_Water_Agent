@@ -401,9 +401,12 @@ async def test_observation_heading_and_family_display_name(mock_context):
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
 
-    # Heading check
-    assert "Most recent 10 observations:" in reply_text
-    assert "First 10 observations:" not in reply_text
+    # GBIF-style complete reply check (no partial table or mixed-modality prompt)
+    assert "Retrieved **all 15** matching discrete records" in reply_text
+    assert "This is the complete result; nothing was truncated." in reply_text
+    assert "Most recent 10 observations:" not in reply_text
+    assert "| Date | Time |" not in reply_text
+    assert "Continuous sensor data is also available" not in reply_text
 
     # Readable family name check (no underscores like dissolved_oxygen)
     assert "Dissolved oxygen" in reply_text
@@ -414,6 +417,53 @@ async def test_observation_heading_and_family_display_name(mock_context):
     artifact_desc = process.create_artifact.call_args.kwargs["description"]
     assert "Dissolved oxygen" in artifact_desc
     assert "dissolved_oxygen" not in artifact_desc
+
+
+@pytest.mark.asyncio
+async def test_observation_reply_flags_incomplete_result(mock_context):
+    from water_agent.fetchers.samples_fetcher import DiscreteFetchResult
+    from water_agent.handlers.observation import handle_observation
+    from water_agent.query_planner import QueryPlan
+    from water_agent.results import RequestContext
+
+    fetch_res = DiscreteFetchResult(
+        records=[
+            {"activity_date": f"2022-01-{i:02d}", "result_value": 8.0 + i * 0.1, "pcode": "00300"}
+            for i in range(1, 6)
+        ],
+        total_count=9,
+        source_urls=["https://example.com/narrow"],
+        warning="Some date ranges could not be retrieved",
+    )
+
+    mock_samples_fetcher = MagicMock()
+    mock_samples_fetcher.fetch_results = AsyncMock(return_value=fetch_res)
+
+    plan = QueryPlan(
+        intent="observation",
+        filters={"monitoring_location_id": "USGS-01646500", "parameter_code": "00300"},
+    )
+    ctx = RequestContext(request_id="test-obs-incomplete")
+    process = MagicMock()
+    process.log = AsyncMock()
+    process.create_artifact = AsyncMock()
+
+    await handle_observation(
+        mock_context,
+        process,
+        plan,
+        ctx,
+        samples_fetcher=mock_samples_fetcher,
+    )
+
+    assert mock_context.reply.called
+    reply_text = mock_context.reply.call_args[0][0]
+    reply_data = mock_context.reply.call_args.kwargs["data"]
+
+    assert "Retrieved **5 of 9** matching discrete records" in reply_text
+    assert "The result is incomplete: Some date ranges could not be retrieved." in reply_text
+    assert "This is the complete result" not in reply_text
+    assert reply_data["result"]["complete"] is False
 
 
 @pytest.mark.asyncio
