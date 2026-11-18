@@ -129,9 +129,10 @@ async def test_continuous_observation_bounded_branch():
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
     assert "2020-01-01/2023-07-31" in reply_text
-    assert "Found 2 daily value(s)" in reply_text
-    assert "between 2020-01-01 and 2023-07-31" in reply_text
+    assert "Retrieved **all 2** daily values" in reply_text
+    assert "Dates range from 2020-01-01 to 2023-07-31." in reply_text
     assert "Most recent value: 150" in reply_text
+    assert mock_context.reply.call_args.kwargs["data"]["result"]["complete"] is True
 
 
 @pytest.mark.asyncio
@@ -186,7 +187,8 @@ async def test_continuous_observation_truncated_reply_and_metadata():
     # Reply must mention results were capped
     reply_text = mock_context.reply.call_args[0][0]
     assert "capped" in reply_text.lower()
-    assert "narrower" in reply_text.lower()
+    assert "narrow" in reply_text.lower()
+    assert mock_context.reply.call_args.kwargs["data"]["result"]["complete"] is False
 
     # Artifact metadata must contain truncated=True
     meta = mock_process.create_artifact.call_args[1]["metadata"]
@@ -258,10 +260,12 @@ async def test_latest_n_with_fixed_limit_not_marked_truncated():
     )
 
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Most recent matching USGS Daily" in reply_text
+    assert "Retrieved **all 5** daily values of streamflow at **USGS-02087500**." in reply_text
+    assert "This is the complete result; nothing was truncated." in reply_text
     assert "capped" not in reply_text.lower()
     meta = mock_process.create_artifact.call_args[1]["metadata"]
     assert meta["truncated"] is False
+    assert mock_context.reply.call_args.kwargs["data"]["result"]["items_inlined"] is True
 
 
 @pytest.mark.asyncio

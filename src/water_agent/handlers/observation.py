@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -333,63 +332,98 @@ async def handle_observation(
         f"most recent is from {readings[0]['time']}."
     )
 
-    await process.create_artifact(
-        mimetype="application/json",
-        description="USGS Daily observations",
-        content=json.dumps(
-            {
-                "filters": plan.filters,
-                "date_lower": date_lower,
-                "date_upper": date_upper,
-                "temporal": temporal_meta,
-                "readings": readings,
-            },
-            indent=2,
-        ).encode("utf-8"),
-        metadata={
-            "filters": plan.filters,
-            "count": len(readings),
-            "source_urls": result.source_urls,
-            "truncated": result.truncated,
-            "date_lower": date_lower,
-            "date_upper": date_upper,
-            "temporal": temporal_meta,
-        },
-    )
-
     latest = readings[0]
     param_desc = (
         plan.semantic.get("parameter")
         or (f"parameter {plan.filters.get('parameter_code')}" if plan.filters.get("parameter_code") else "observation")
     )
+    station_filter = plan.filters.get("monitoring_location_id")
     loc_parts = []
     if plan.semantic.get("county"):
         loc_parts.append(plan.semantic["county"])
     if plan.semantic.get("state"):
         loc_parts.append(plan.semantic["state"])
-    loc_str = f" in {', '.join(loc_parts)}" if loc_parts else ""
+    if station_filter:
+        scope = str(station_filter)
+    elif loc_parts:
+        scope = ", ".join(loc_parts)
+    else:
+        unique_sites = list(
+            dict.fromkeys(r["monitoring_location_id"] for r in readings if r.get("monitoring_location_id"))
+        )
+        scope = ", ".join(unique_sites) if unique_sites and len(unique_sites) <= 3 else "the requested area"
+
+    inline_header = (
+        "| Date | Value | Unit | Station |\n"
+        "| :--- | :--- | :--- | :--- |"
+    )
+    inline_items = [
+        f"| {r.get('time') or '--'} | {r.get('value') if r.get('value') is not None else '--'} | "
+        f"{r.get('unit') or '--'} | {r.get('monitoring_location_id') or '--'} |"
+        for r in readings
+    ]
+
+    artifact_content = {
+        "filters": plan.filters,
+        "date_lower": date_lower,
+        "date_upper": date_upper,
+        "temporal": temporal_meta,
+        "readings": readings,
+    }
+    artifact_metadata = {
+        "filters": plan.filters,
+        "count": len(readings),
+        "source_urls": result.source_urls,
+        "truncated": result.truncated,
+        "date_lower": date_lower,
+        "date_upper": date_upper,
+        "temporal": temporal_meta,
+    }
+
+    most_recent_line = (
+        f"Most recent value: {latest['value']} {latest['unit']} on {latest['time']} at "
+        f"{latest['monitoring_location_id']}."
+    )
 
     if dt:
         dates = [r["time"] for r in readings if r.get("time")]
         earliest_date = min(dates) if dates else "unknown"
         latest_date = max(dates) if dates else "unknown"
-
-        capped_notice = ""
-        if result.truncated:
-            capped_notice = f" (results were capped at {len(readings):,}; specify a narrower date window to retrieve all observations)"
-
-        interp_prefix = f"{interp_text} " if interp_text else ""
-        await context.reply(
-            f"{interp_prefix}USGS Daily {param_desc} observations{loc_str} for window {dt}: "
-            f"Found {len(readings):,} daily value(s) between {earliest_date} and {latest_date}{capped_notice}. "
-            f"Most recent value: {latest['value']} {latest['unit']} on {latest['time']} at "
-            f"{latest['monitoring_location_id']}.",
-            data={"filters": plan.filters},
+        warning = (
+            f"capped at {len(readings):,} by the agent; narrow the date range for the rest"
+            if result.truncated
+            else None
+        )
+        summary = ResultSummary(
+            kind_label="daily values",
+            subject=param_desc,
+            scope=scope,
+            unit_label="daily values",
+            total_available=len(readings),
+            retrieved=len(readings),
+            window=dt,
+            warning=warning,
+            interpretation=interp_text or None,
+            highlights=[
+                f"Dates range from {earliest_date} to {latest_date}.",
+                most_recent_line,
+            ],
+            inline_header=inline_header,
+            inline_items=inline_items,
         )
     else:
-        await context.reply(
-            f"Most recent matching USGS Daily {param_desc} observation{loc_str}: {latest['value']} "
-            f"{latest['unit']} on {latest['time']} at "
-            f"{latest['monitoring_location_id']}.",
-            data={"filters": plan.filters},
+        summary = ResultSummary(
+            kind_label="daily values",
+            subject=param_desc,
+            scope=scope,
+            unit_label="daily values",
+            total_available=len(readings),
+            retrieved=len(readings),
+            window=f"latest {len(readings)}",
+            warning=None,
+            highlights=[most_recent_line],
+            inline_header=inline_header,
+            inline_items=inline_items,
         )
+
+    await send_result(context, process, plan, summary, artifact_content, artifact_metadata)
