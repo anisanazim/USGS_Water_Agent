@@ -525,6 +525,6 @@ async def test_inventory_handler_appends_temporal_note_without_failing():
         )
         await handle_inventory(mc, mp, plan, ctx, request="What data is available at USGS-02087500?")
         reply = mc.reply.call_args[0][0]
-        assert "Available data parameters for **USGS-02087500**" in reply
+        assert "Retrieved **all 1** characteristics of all parameters at **USGS-02087500**." in reply
         assert expected_note in reply
 
