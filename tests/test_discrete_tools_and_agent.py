@@ -738,7 +738,8 @@ async def test_count_with_date_window_applies_params_and_window_phrase():
     reply_text = mock_context.reply.call_args[0][0]
     assert "Interpreted" in reply_text
     assert "2020-01-01 to 2023-07-31" in reply_text
-    assert "Found **123** discrete observations" in reply_text
+    assert "Retrieved **all 123** observations" in reply_text
+    assert "To view the actual numerical measurements" not in reply_text
 
     # Check artifact metadata has date_lower and date_upper
     assert mock_process.create_artifact.called
@@ -794,10 +795,13 @@ async def test_count_with_no_dates_is_byte_for_byte_unchanged():
     assert "between" not in reply_text
     assert "from" not in reply_text
     assert "up to" not in reply_text
-    # Exactly matches baseline phrasing
+    # Matches reply contract with no date window phrase
     assert reply_text.startswith(
-        "Found **123** discrete observations for **Phosphorus as phosphorus, water, unfiltered** (mg/l as P) (code **00665**) at **USGS-0423205010**.\n\n"
+        "Retrieved **all 123** observations of Phosphorus as phosphorus, water, unfiltered (00665), mg/l as P at **USGS-0423205010**. "
+        "This is the complete result; nothing was truncated."
     )
+    assert "To check the count of an individual parameter code" not in reply_text
+    assert "To view the actual numerical measurements" not in reply_text
 
     # Artifact metadata has None for date bounds
     artifact_meta = mock_process.create_artifact.call_args[1]["metadata"]

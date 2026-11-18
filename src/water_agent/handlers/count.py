@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ast
-import json
 import logging
 import re
 import uuid
@@ -13,6 +11,7 @@ from water_agent.handlers.common import (
     format_family_name,
     resolve_handler_temporal_window,
 )
+from water_agent.handlers.reply_utils import ResultSummary, send_result
 from water_agent.metadata.discrete_families import (
     DISCRETE_FAMILIES,
     INORGANIC_CARBON_UNSUPPORTED_MSG,
@@ -250,52 +249,49 @@ async def handle_parameter_count(
                     elif m["pcode"] in itm.get("descriptor", ""):
                         breakdown_by_pcode[m["pcode"]] = itm["count"]
 
-    interp_block = f"{spec.format_interpretation()}\n\n" if spec is not None else ""
     disp_family = format_family_name(family_name)
+    window = (
+        f"{start_date or 'earliest'} to {end_date or 'latest'}"
+        if (start_date or end_date)
+        else None
+    )
 
-    # Build user-facing response
     if len(pcodes) == 1:
         p_desc = meta_list[0]["descriptor"]
-        p_unit = f" ({meta_list[0]['unit']})" if meta_list[0]["unit"] else ""
-        response_text = (
-            f"Found **{total_count:,}** discrete observations for **{p_desc}**{p_unit} "
-            f"(code **{pcodes[0]}**) at **{station_id}**.\n\n"
-            f"{interp_block}"
-        )
+        p_unit = f", {meta_list[0]['unit']}" if meta_list[0]["unit"] else ""
+        subject = f"{p_desc} ({pcodes[0]}){p_unit}"
     else:
-        response_text = (
-            f"Found **{total_count:,}** total discrete measurements for **{disp_family}** at **{station_id}**.\n\n"
-            f"{interp_block}"
-            f"Constituent parameter codes included in this query:\n\n"
-        )
+        subject = disp_family
+
+    inline_header: str | None = None
+    inline_items: list[str] | None = None
+    if len(meta_list) > 1:
         if breakdown_by_pcode:
             count_col = (
                 "Lifetime observations (all dates)"
                 if spec is not None
                 else "Station Observations"
             )
-            response_text += f"| Parameter Code | Parameter Description | Unit | {count_col} |\n"
-            response_text += "| :---: | --- | :---: | :---: |\n"
-            for m in meta_list:
-                c = breakdown_by_pcode.get(m["pcode"], 0)
-                u = m["unit"] or "-"
-                response_text += f"| **{m['pcode']}** | {m['descriptor']} | {u} | {c:,} |\n"
+            inline_header = (
+                "Constituent parameter codes included in this query:\n\n"
+                f"| Parameter Code | Parameter Description | Unit | {count_col} |\n"
+                "| :---: | --- | :---: | :---: |"
+            )
+            inline_items = [
+                f"| **{m['pcode']}** | {m['descriptor']} | {m['unit'] or '-'} | {breakdown_by_pcode.get(m['pcode'], 0):,} |"
+                for m in meta_list
+            ]
         else:
-            response_text += "| Parameter Code | Parameter Description / What It Means | Unit |\n"
-            response_text += "| :---: | --- | :---: |\n"
-            for m in meta_list:
-                u = m["unit"] or "-"
-                response_text += f"| **{m['pcode']}** | {m['descriptor']} | {u} |\n"
-        response_text += "\n"
+            inline_header = (
+                "Constituent parameter codes included in this query:\n\n"
+                "| Parameter Code | Parameter Description | Unit |\n"
+                "| :---: | --- | :---: |"
+            )
+            inline_items = [
+                f"| **{m['pcode']}** | {m['descriptor']} | {m['unit'] or '-'} |"
+                for m in meta_list
+            ]
 
-    # Add next-step guidance
-    response_text += "---\n"
-    response_text += f"- To check the count of an individual parameter code, ask: *'How many records of {pcodes[0]} at {station_id}?'*\n"
-    response_text += f"- To view the actual numerical measurements, ask: *'Show me the {disp_family} values at {station_id}'* (which queries `/results/narrow`).\n\n"
-    response_text += "Modality: discrete sample measurements (not continuous sensors).\n"
-    response_text += "Sample media: Water (samples in other media such as sediment/tissue are excluded)."
-
-    # Store artifact
     artifact_id = uuid.uuid4().hex
     artifact_payload = {
         "station_id": station_id,
@@ -309,21 +305,33 @@ async def handle_parameter_count(
         "date_upper": end_date,
         "temporal": temporal_meta,
     }
-    await process.create_artifact(
-        mimetype="application/json",
-        description=f"USGS Discrete Parameter Counts: {disp_family} at {station_id}",
-        content=json.dumps(artifact_payload, indent=2).encode("utf-8"),
-        metadata={
-            "count": total_count,
-            "station_id": station_id,
-            "family": family_name,
-            "pcodes": pcodes,
-            "source_urls": [req_url],
-            "artifact_id": artifact_id,
-            "date_lower": start_date,
-            "date_upper": end_date,
-            "temporal": temporal_meta,
-        },
+    artifact_metadata = {
+        "count": total_count,
+        "station_id": station_id,
+        "family": family_name,
+        "pcodes": pcodes,
+        "source_urls": [req_url],
+        "artifact_id": artifact_id,
+        "date_lower": start_date,
+        "date_upper": end_date,
+        "temporal": temporal_meta,
+    }
+
+    summary = ResultSummary(
+        kind_label="discrete counts",
+        subject=subject,
+        scope=station_id,
+        unit_label="observations",
+        total_available=total_count,
+        retrieved=total_count,
+        window=window,
+        interpretation=spec.format_interpretation() if spec is not None else None,
+        inline_header=inline_header,
+        inline_items=inline_items,
+        notes=[
+            "Modality: discrete sample measurements (not continuous sensors).",
+            "Sample media: Water (samples in other media such as sediment/tissue are excluded).",
+        ],
     )
 
-    await context.reply(response_text, data=plan.model_dump())
+    await send_result(context, process, plan, summary, artifact_payload, artifact_metadata)
