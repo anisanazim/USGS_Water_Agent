@@ -128,7 +128,7 @@ async def test_continuous_observation_bounded_branch():
     # 2. Check reply message
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "2020-01-01/2023-07-31" in reply_text
+    assert "2020-01-01 to 2023-07-31" in reply_text
     assert "Retrieved **all 2** daily values" in reply_text
     assert "Dates range from 2020-01-01 to 2023-07-31." in reply_text
     assert "Most recent value: 150" in reply_text
@@ -184,11 +184,14 @@ async def test_continuous_observation_truncated_reply_and_metadata():
         water_data_fetcher=mock_fetcher,
     )
 
-    # Reply must mention results were capped
+    # Reply must mention results were capped and more exist
     reply_text = mock_context.reply.call_args[0][0]
     assert "capped" in reply_text.lower()
     assert "narrow" in reply_text.lower()
+    assert "(more exist)" in reply_text
+    assert "will not return additional" not in reply_text
     assert mock_context.reply.call_args.kwargs["data"]["result"]["complete"] is False
+    assert mock_context.reply.call_args.kwargs["data"]["result"]["total_available"] is None
 
     # Artifact metadata must contain truncated=True
     meta = mock_process.create_artifact.call_args[1]["metadata"]

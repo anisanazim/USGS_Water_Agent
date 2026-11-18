@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from ichatbio.agent_response import ResponseContext
 from water_agent.config import settings
+
+_ATEMPORAL_KINDS = frozenset({"monitoring locations", "station inventory"})
 
 
 @dataclass
 class ResultSummary:
     kind_label: str          # "discrete observations" | "daily values" | "monitoring locations" | "station inventory" | "discrete counts"
-    subject: str             # e.g. "Dissolved oxygen (DO), water, unfiltered (00300), mg/l"
+    subject: str             # e.g. "Dissolved oxygen (DO), water, unfiltered (00300), mg/l" or "for calcium"
     scope: str               # station id or area, e.g. "USGS-0423205010" / "Wake County, NC"
     unit_label: str          # "records" | "daily values" | "stations" | "characteristics" | "observations"
-    total_available: int
+    total_available: int | None
     retrieved: int
+    kind: Literal["records", "count"] = "records"
+    preposition: str = "at"
     window: str | None = None          # "2020-01-01 to 2023-07-31"; None = all dates
     warning: str | None = None         # only real strings; ignore non-str (mocks)
     interpretation: str | None = None  # spec.format_interpretation() when a date spec exists
@@ -32,14 +36,24 @@ class ResultSummary:
 
     @property
     def complete(self) -> bool:
-        return self.retrieved >= self.total_available and not self.warning
+        if self.warning:
+            return False
+        if self.total_available is None:
+            return False
+        return self.retrieved >= self.total_available
+
+
+def _subject_phrase(subject: str) -> str:
+    if subject.startswith(("for ", "of ")):
+        return subject
+    return f"of {subject}"
 
 
 def artifact_description(s: ResultSummary) -> str:
-    return (
-        f"USGS {s.kind_label} - {s.subject} at {s.scope}, "
-        f"{s.window or 'all dates'} ({s.retrieved:,} {s.unit_label})"
-    )
+    base = f"USGS {s.kind_label} - {s.subject} {s.preposition} {s.scope}"
+    if s.window is None and s.kind_label in _ATEMPORAL_KINDS:
+        return f"{base} ({s.retrieved:,} {s.unit_label})"
+    return f"{base}, {s.window or 'all dates'} ({s.retrieved:,} {s.unit_label})"
 
 
 def should_inline(s: ResultSummary, inline_max: int | None = None) -> bool:
@@ -58,19 +72,32 @@ def build_reply_text(
     inline_max: int | None = None,
 ) -> str:
     sections: list[str] = []
+    subj = _subject_phrase(s.subject)
 
     # 1. Status line
-    if s.complete:
+    if s.kind == "count":
+        total_n = s.total_available if s.total_available is not None else s.retrieved
         status = (
-            f"Retrieved **all {s.retrieved:,}** {s.unit_label} of {s.subject} at **{s.scope}**. "
+            f"Found **{total_n:,}** {s.unit_label} {subj} {s.preposition} **{s.scope}**. "
+            "This is the exact total reported by USGS."
+        )
+    elif s.complete:
+        status = (
+            f"Retrieved **all {s.retrieved:,}** {s.unit_label} {subj} {s.preposition} **{s.scope}**. "
             "This is the complete result; nothing was truncated."
         )
     else:
         reason = f": {s.warning}" if s.warning else ""
-        status = (
-            f"Retrieved **{s.retrieved:,} of {s.total_available:,}** {s.unit_label} of "
-            f"{s.subject} at **{s.scope}**. The result is incomplete{reason}."
-        )
+        if s.total_available is not None:
+            status = (
+                f"Retrieved **{s.retrieved:,} of {s.total_available:,}** {s.unit_label} {subj} "
+                f"{s.preposition} **{s.scope}**. The result is incomplete{reason}."
+            )
+        else:
+            status = (
+                f"Retrieved **{s.retrieved:,}** {s.unit_label} {subj} {s.preposition} **{s.scope}** "
+                f"(more exist). The result is incomplete{reason}."
+            )
     sections.append(status)
 
     # 2. Date interpretation (if any)
@@ -91,12 +118,21 @@ def build_reply_text(
             sections.append("\n".join(s.inline_items))
 
     # 5. Artifact pointer
-    pointer = (
-        f'All {s.retrieved:,} {s.unit_label} are in the artifact created in this step: "{description}".'
-    )
-    if not inlined:
-        pointer += (
-            f" Read that artifact for the full list; splitting the request will not return additional {s.unit_label}."
+    if s.kind == "count":
+        pointer = (
+            f'The count and per-code breakdown are in the artifact created in this step: "{description}".'
+        )
+    elif s.complete:
+        pointer = (
+            f'All {s.retrieved:,} {s.unit_label} are in the artifact created in this step: "{description}".'
+        )
+        if not inlined:
+            pointer += (
+                f" Read that artifact for the full list; splitting the request will not return additional {s.unit_label}."
+            )
+    else:
+        pointer = (
+            f'The {s.retrieved:,} retrieved {s.unit_label} are in the artifact created in this step: "{description}".'
         )
     sections.append(pointer)
 
@@ -140,4 +176,3 @@ async def send_result(
     }
     await context.reply(reply_text, data=reply_data)
     return description
-

@@ -324,6 +324,7 @@ async def handle_parameter_count(
         unit_label="observations",
         total_available=total_count,
         retrieved=total_count,
+        kind="count",
         window=window,
         interpretation=spec.format_interpretation() if spec is not None else None,
         inline_header=inline_header,

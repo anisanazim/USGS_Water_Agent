@@ -158,8 +158,9 @@ async def handle_spatial(
 
     summary = ResultSummary(
         kind_label="monitoring locations",
-        subject=subject,
+        subject=f"for {subject}",
         scope=scope,
+        preposition="in",
         unit_label="stations",
         total_available=len(stations),
         retrieved=len(stations),

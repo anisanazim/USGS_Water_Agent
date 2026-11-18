@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -27,16 +27,30 @@ def test_artifact_description_format():
         "at USGS-0423205010, 2020-01-01 to 2023-07-31 (36 records)"
     )
 
-    s_all = ResultSummary(
+    # Atemporal kinds (monitoring locations, station inventory) omit "all dates" when window is None
+    s_spatial = ResultSummary(
         kind_label="monitoring locations",
-        subject="calcium",
+        subject="for calcium",
         scope="Wake County, NC",
+        preposition="in",
         unit_label="stations",
         total_available=1200,
         retrieved=1200,
     )
-    assert artifact_description(s_all) == (
-        "USGS monitoring locations - calcium at Wake County, NC, all dates (1,200 stations)"
+    assert artifact_description(s_spatial) == (
+        "USGS monitoring locations - for calcium in Wake County, NC (1,200 stations)"
+    )
+
+    s_inv = ResultSummary(
+        kind_label="station inventory",
+        subject="all parameters",
+        scope="USGS-0423205010",
+        unit_label="characteristics",
+        total_available=10,
+        retrieved=10,
+    )
+    assert artifact_description(s_inv) == (
+        "USGS station inventory - all parameters at USGS-0423205010 (10 characteristics)"
     )
 
 
@@ -73,8 +87,9 @@ def test_build_reply_text_omits_inline_when_over_limit():
     items = [f"- `USGS-{i:08d}`" for i in range(1, 61)]
     s = ResultSummary(
         kind_label="monitoring locations",
-        subject="calcium",
+        subject="for calcium",
         scope="North Carolina",
+        preposition="in",
         unit_label="stations",
         total_available=60,
         retrieved=60,
@@ -84,7 +99,7 @@ def test_build_reply_text_omits_inline_when_over_limit():
     desc = artifact_description(s)
     text = build_reply_text(s, desc)
 
-    assert "Retrieved **all 60** stations of calcium at **North Carolina**." in text
+    assert "Retrieved **all 60** stations for calcium in **North Carolina**." in text
     assert "This is the complete result; nothing was truncated." in text
     assert "USGS-00000001" not in text
     assert "USGS-00000060" not in text
@@ -93,8 +108,9 @@ def test_build_reply_text_omits_inline_when_over_limit():
     assert desc in text
 
 
-def test_build_reply_text_incomplete_result():
-    s = ResultSummary(
+def test_build_reply_text_incomplete_result_known_and_unknown_total():
+    # Known total
+    s_known = ResultSummary(
         kind_label="discrete observations",
         subject="Dissolved oxygen (00300)",
         scope="USGS-01646500",
@@ -104,16 +120,62 @@ def test_build_reply_text_incomplete_result():
         warning="Some date ranges could not be retrieved",
         inline_items=["row1", "row2", "row3", "row4", "row5"],
     )
+    desc_known = artifact_description(s_known)
+    text_known = build_reply_text(s_known, desc_known)
+
+    assert s_known.complete is False
+    assert "Retrieved **5 of 9** records" in text_known
+    assert "The result is incomplete: Some date ranges could not be retrieved." in text_known
+    assert "This is the complete result" not in text_known
+    assert "will not return additional" not in text_known
+    assert "All 5" not in text_known
+    assert f'The 5 retrieved records are in the artifact created in this step: "{desc_known}".' in text_known
+    assert "row1" not in text_known
+
+    # Unknown total (None -> "(more exist)")
+    s_unknown = ResultSummary(
+        kind_label="daily values",
+        subject="streamflow",
+        scope="USGS-02087500",
+        unit_label="daily values",
+        total_available=None,
+        retrieved=100,
+        window="2020-01-01 to 2023-07-31",
+        warning="capped at 100 by the agent; narrow the date range for the rest",
+        inline_items=["r1"],
+    )
+    desc_unknown = artifact_description(s_unknown)
+    text_unknown = build_reply_text(s_unknown, desc_unknown)
+
+    assert s_unknown.complete is False
+    assert "Retrieved **100** daily values of streamflow at **USGS-02087500** (more exist)." in text_unknown
+    assert "The result is incomplete: capped at 100 by the agent; narrow the date range for the rest." in text_unknown
+    assert "will not return additional" not in text_unknown
+    assert "All 100" not in text_unknown
+    assert f'The 100 retrieved daily values are in the artifact created in this step: "{desc_unknown}".' in text_unknown
+
+
+def test_build_reply_text_count_kind():
+    s = ResultSummary(
+        kind_label="discrete counts",
+        subject="phosphorus",
+        scope="USGS-0423205010",
+        unit_label="observations",
+        total_available=70,
+        retrieved=70,
+        kind="count",
+        inline_header="| Parameter Code | Description |\n| --- | --- |",
+        inline_items=["| **00665** | Phosphorus, unfiltered |"],
+    )
     desc = artifact_description(s)
     text = build_reply_text(s, desc)
 
-    assert s.complete is False
-    assert "Retrieved **5 of 9** records" in text
-    assert "The result is incomplete: Some date ranges could not be retrieved." in text
-    assert "This is the complete result" not in text
-    # Incomplete results never inline items
-    assert "row1" not in text
-    assert "will not return additional records" in text
+    assert "Found **70** observations of phosphorus at **USGS-0423205010**. This is the exact total reported by USGS." in text
+    assert f'The count and per-code breakdown are in the artifact created in this step: "{desc}".' in text
+    assert "Retrieved" not in text
+    assert "All 70 observations are in the artifact" not in text
+    assert "full list" not in text
+    assert "splitting" not in text
 
 
 def test_magicmock_warning_is_ignored():
@@ -181,4 +243,3 @@ async def test_send_result_creates_artifact_and_sends_structured_reply():
         "artifact_description": desc,
         "items_inlined": True,
     }
-

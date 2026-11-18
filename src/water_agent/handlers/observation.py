@@ -34,6 +34,15 @@ logger = logging.getLogger(__name__)
 LATEST_READINGS_COUNT = 5
 
 
+def _format_ogc_window(dt: str) -> str:
+    if "/" not in dt:
+        return dt
+    left, right = dt.split("/", 1)
+    left_fmt = "earliest" if left.strip() == ".." else left.strip()
+    right_fmt = "latest" if right.strip() == ".." else right.strip()
+    return f"{left_fmt} to {right_fmt}"
+
+
 def _normalize_daily_feature(feature: dict[str, Any]) -> dict[str, Any]:
     properties = feature.get("properties", {})
     return {
@@ -399,9 +408,9 @@ async def handle_observation(
             subject=param_desc,
             scope=scope,
             unit_label="daily values",
-            total_available=len(readings),
+            total_available=None if result.truncated else len(readings),
             retrieved=len(readings),
-            window=dt,
+            window=_format_ogc_window(dt),
             warning=warning,
             interpretation=interp_text or None,
             highlights=[

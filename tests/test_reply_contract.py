@@ -314,11 +314,19 @@ HANDLER_KINDS = [
 async def test_reply_contract_across_all_data_handlers(handler_kind: str, count: int):
     reply_text, reply_data, artifact_desc, all_tokens, tail_tokens = await _run_case(handler_kind, count)
 
-    # Rule 2: Complete status wording and structured result block
-    assert "This is the complete result; nothing was truncated." in reply_text
+    # Rule 2 & 5: Status wording and structured result block
     assert "result" in reply_data
     assert reply_data["result"]["complete"] is True
     assert reply_data["result"]["artifact_description"] == artifact_desc
+
+    if handler_kind == "count":
+        assert "This is the exact total reported by USGS." in reply_text
+        assert "Retrieved" not in reply_text
+        assert "full list" not in reply_text
+        assert "will not return additional" not in reply_text
+        assert "All 500 observations are in the artifact" not in reply_text
+    else:
+        assert "This is the complete result; nothing was truncated." in reply_text
 
     # Rule 3: Reply names the exact artifact description passed to create_artifact
     assert artifact_desc in reply_text
@@ -330,11 +338,110 @@ async def test_reply_contract_across_all_data_handlers(handler_kind: str, count:
             assert token in reply_text, f"{handler_kind} (n=3) missing inlined token {token!r}"
     else:
         assert reply_data["result"]["items_inlined"] is False
-        assert "will not return additional" in reply_text
+        if handler_kind != "count":
+            assert "will not return additional" in reply_text
         for token in tail_tokens:
             assert token not in reply_text, f"{handler_kind} (n=60) leaked item token {token!r} in reply"
 
     # Rule 4: Forbidden partial-list / follow-up / mixed-modality substrings never appear
     for bad in FORBIDDEN_SUBSTRINGS:
         assert bad not in reply_text, f"{handler_kind} (n={count}) contained forbidden substring {bad!r}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("handler_kind", ["daily_bounded", "discrete_observation"])
+async def test_reply_contract_incomplete_variants(handler_kind: str):
+    context, process = _make_mocks()
+    ctx = RequestContext(request_id=f"contract-incomplete-{handler_kind}")
+
+    if handler_kind == "daily_bounded":
+        base = date(2022, 1, 1)
+        features = [
+            {
+                "properties": {
+                    "monitoring_location_id": "USGS-02087500",
+                    "parameter_code": "00060",
+                    "value": 2001.5 + i,
+                    "unit_of_measure": "ft3/s",
+                    "time": (base + timedelta(days=i)).isoformat(),
+                }
+            }
+            for i in reversed(range(3))
+        ]
+        fetcher = AsyncMock(spec=USGSWaterDataFetcher)
+        fetcher.fetch_daily_values = AsyncMock(
+            return_value=PagedResult(
+                features=features,
+                source_urls=["https://example.test/daily"],
+                truncated=True,
+            )
+        )
+        plan = QueryPlan(
+            intent="observation",
+            modality="continuous",
+            filters={
+                "monitoring_location_id": "USGS-02087500",
+                "parameter_code": "00060",
+                "start_date": "2022-01-01",
+                "end_date": "2022-04-01",
+            },
+            semantic={"parameter": "streamflow"},
+        )
+        await handle_observation(context, process, plan, ctx, water_data_fetcher=fetcher)
+        expected_retrieved = 3
+    else:
+        base = date(2022, 1, 1)
+        records = [
+            {
+                "activity_date": (base + timedelta(days=i)).isoformat(),
+                "activity_time": "10:00:00",
+                "result_value": 1001.5 + i,
+                "unit": "mg/l",
+                "pcode": "00300",
+            }
+            for i in range(5)
+        ]
+        fetcher = AsyncMock(spec=USGSSamplesFetcher)
+        fetcher.fetch_results = AsyncMock(
+            return_value=DiscreteFetchResult(
+                records=records,
+                total_count=9,
+                source_urls=["https://example.test/narrow"],
+                warning="Some date ranges could not be retrieved",
+            )
+        )
+        plan = QueryPlan(
+            intent="observation",
+            modality="discrete",
+            filters={
+                "monitoring_location_id": "USGS-0423205010",
+                "parameter_code": "00300",
+            },
+        )
+        await handle_observation(context, process, plan, ctx, samples_fetcher=fetcher)
+        expected_retrieved = 5
+
+    assert context.reply.called
+    assert process.create_artifact.called
+    reply_text = context.reply.call_args[0][0]
+    reply_data = context.reply.call_args.kwargs["data"]
+    artifact_desc = process.create_artifact.call_args.kwargs["description"]
+
+    assert "incomplete" in reply_text.lower()
+    assert "will not return additional" not in reply_text
+    assert "This is the complete result" not in reply_text
+    assert f"All {expected_retrieved}" not in reply_text
+    assert artifact_desc in reply_text
+    assert reply_data["result"]["complete"] is False
+    assert reply_data["result"]["items_inlined"] is False
+
+    if handler_kind == "daily_bounded":
+        assert "(more exist)" in reply_text
+        assert reply_data["result"]["total_available"] is None
+    else:
+        assert "5 of 9" in reply_text
+        assert reply_data["result"]["total_available"] == 9
+
+    for bad in FORBIDDEN_SUBSTRINGS:
+        assert bad not in reply_text
 

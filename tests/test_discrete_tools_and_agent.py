@@ -296,7 +296,7 @@ async def test_agent_handles_discrete_spatial_citation_contract():
 
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Retrieved **all 1** stations of calcium at **North Carolina**." in reply_text
+    assert "Retrieved **all 1** stations for calcium in **North Carolina**." in reply_text
     assert "This is the complete result; nothing was truncated." in reply_text
     assert "Stations monitoring multiple forms appear once in this total" in reply_text
     assert "Primary parameter:" not in reply_text
@@ -352,7 +352,7 @@ async def test_spatial_query_different_quantity_drops_primary_parameter():
 
     assert mock_context.reply.called
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Retrieved **all 1** stations of nitrate at **Wake County, North Carolina**." in reply_text
+    assert "Retrieved **all 1** stations for nitrate in **Wake County, North Carolina**." in reply_text
     assert "This is the complete result; nothing was truncated." in reply_text
     assert "Stations monitoring multiple forms appear once in this total" in reply_text
     assert "Breakdown by parameter code:" in reply_text
@@ -738,7 +738,10 @@ async def test_count_with_date_window_applies_params_and_window_phrase():
     reply_text = mock_context.reply.call_args[0][0]
     assert "Interpreted" in reply_text
     assert "2020-01-01 to 2023-07-31" in reply_text
-    assert "Retrieved **all 123** observations" in reply_text
+    assert "Found **123** observations" in reply_text
+    assert "This is the exact total reported by USGS." in reply_text
+    assert "Retrieved" not in reply_text
+    assert "full list" not in reply_text
     assert "To view the actual numerical measurements" not in reply_text
 
     # Check artifact metadata has date_lower and date_upper
@@ -795,11 +798,13 @@ async def test_count_with_no_dates_is_byte_for_byte_unchanged():
     assert "between" not in reply_text
     assert "from" not in reply_text
     assert "up to" not in reply_text
-    # Matches reply contract with no date window phrase
+    # Matches count reply contract with no date window phrase
     assert reply_text.startswith(
-        "Retrieved **all 123** observations of Phosphorus as phosphorus, water, unfiltered (00665), mg/l as P at **USGS-0423205010**. "
-        "This is the complete result; nothing was truncated."
+        "Found **123** observations of Phosphorus as phosphorus, water, unfiltered (00665), mg/l as P at **USGS-0423205010**. "
+        "This is the exact total reported by USGS."
     )
+    assert "Retrieved" not in reply_text
+    assert "full list" not in reply_text
     assert "To check the count of an individual parameter code" not in reply_text
     assert "To view the actual numerical measurements" not in reply_text
 
