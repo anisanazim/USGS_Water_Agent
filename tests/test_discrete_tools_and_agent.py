@@ -1,3 +1,4 @@
+import json
 import pytest
 import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -847,11 +848,12 @@ async def test_count_windowed_reply_labels_lifetime_breakdown():
     ctx = RequestContext(request_id="test-count-label")
     inv_mock = MagicMock()
     inv_mock.items = {
+        "monitoring_location_id": "USGS-0423205010",
         "discrete_parameters": {
             "Nutrients": [
                 {"descriptor": "Phosphorus, water, unfiltered", "characteristic": "Phosphorus", "count": 500}
             ]
-        }
+        },
     }
     ctx.store.get = MagicMock(return_value=inv_mock)
 
@@ -865,9 +867,93 @@ async def test_count_windowed_reply_labels_lifetime_breakdown():
     )
 
     reply_text = mock_context.reply.call_args[0][0]
-    assert "00665" in reply_text and "500" in reply_text
-    assert "Lifetime observations (all dates)" not in reply_text
-    assert "Station Observations" not in reply_text
+    assert "123" in reply_text
+    assert "500" not in reply_text
+    assert "Parameter codes included:" in reply_text
+
+    art_content = json.loads(mock_process.create_artifact.call_args.kwargs["content"].decode("utf-8"))
+    assert art_content.get("lifetime_breakdown_from_inventory")
+    assert art_content["lifetime_breakdown_from_inventory"]["00665"] == 500
+    assert "retrieved_at" in mock_process.create_artifact.call_args.kwargs["metadata"]
+
+
+@pytest.mark.asyncio
+async def test_count_inventory_different_station_ignored():
+    """An inventory in ctx.store for a different station must NOT leak numbers into reply or artifact."""
+    from water_agent.handlers.count import handle_parameter_count
+    from water_agent.query_planner import QueryPlan
+
+    mock_process = AsyncMock()
+    mock_process.__aenter__.return_value = mock_process
+    mock_process.__aexit__.return_value = None
+
+    mock_context = MagicMock()
+    mock_context.begin_process.return_value = mock_process
+    mock_context.reply = AsyncMock()
+
+    mock_fetcher = AsyncMock()
+    mock_fetcher.base_url = "https://api.waterdata.usgs.gov/samples-data"
+    mock_fetcher._build_source_url = lambda url, p: f"{url}?mocked"
+    mock_fetcher._normalize_params = lambda p: p
+    mock_fetcher.get_results_count = AsyncMock(return_value=123)
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        inventory_ref="inv-diff-station",
+        filters={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameter_code": "phosphorus",
+            "start_date": "2020-01-01",
+        },
+    )
+    ctx = RequestContext(request_id="test-count-diff-station")
+    inv_mock = MagicMock()
+    inv_mock.items = {
+        "monitoring_location_id": "USGS-99999999",  # Different station!
+        "discrete_parameters": {
+            "Nutrients": [
+                {"descriptor": "Phosphorus, water, unfiltered", "characteristic": "Phosphorus", "count": 777}
+            ]
+        },
+    }
+    ctx.store.get = MagicMock(return_value=inv_mock)
+
+    await handle_parameter_count(
+        context=mock_context,
+        process=mock_process,
+        plan=plan,
+        ctx=ctx,
+        request="How many phosphorus records at USGS-0423205010 from 2020-01-01?",
+        samples_fetcher=mock_fetcher,
+    )
+
+    reply_text = mock_context.reply.call_args[0][0]
+    assert "777" not in reply_text
+
+    art_content = json.loads(mock_process.create_artifact.call_args.kwargs["content"].decode("utf-8"))
+    assert "lifetime_breakdown_from_inventory" not in art_content
+    assert "777" not in json.dumps(art_content)
+
+    art_meta = mock_process.create_artifact.call_args.kwargs["metadata"]
+    assert "retrieved_at" in art_meta
+    assert "777" not in json.dumps(art_meta)
+
+
+def test_extract_pcodes_and_family_semantic_parameter_fallback():
+    """When parameter_code is missing in filters, extract_pcodes_and_family falls back to plan.semantic['parameter']."""
+    from water_agent.handlers.count import extract_pcodes_and_family
+    from water_agent.query_planner import QueryPlan
+
+    plan = QueryPlan(
+        intent="station_parameter_count",
+        filters={"monitoring_location_id": "USGS-0423205010"},
+        semantic={"parameter": "pH"},
+    )
+    pcodes, family_name, meta_list = extract_pcodes_and_family(plan, request="How many records at USGS-0423205010?")
+    assert family_name.lower() == "ph"
+    assert "00400" in pcodes
+    assert "00403" in pcodes
+    assert len(pcodes) == 5
 
 
 @pytest.mark.asyncio

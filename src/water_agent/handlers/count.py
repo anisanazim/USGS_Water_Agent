@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 import re
 import uuid
@@ -224,15 +225,31 @@ async def handle_parameter_count(
     inv_stored = None
     if getattr(plan, "inventory_ref", None):
         try:
-            inv_stored = ctx.store.get(plan.inventory_ref, "inventory")
+            cand = ctx.store.get(plan.inventory_ref, "inventory")
+            cand_st = (
+                cand.items.get("monitoring_location_id")
+                or getattr(cand, "station_id", None)
+                if isinstance(cand.items, dict)
+                else None
+            )
+            if cand_st == station_id:
+                inv_stored = cand
         except Exception:
             pass
     if not inv_stored:
         for h in ctx.store.refs():
             if h.kind == "inventory":
                 try:
-                    inv_stored = ctx.store.get(h.ref, "inventory")
-                    break
+                    cand = ctx.store.get(h.ref, "inventory")
+                    cand_st = (
+                        cand.items.get("monitoring_location_id")
+                        or getattr(cand, "station_id", None)
+                        if isinstance(cand.items, dict)
+                        else None
+                    )
+                    if cand_st == station_id:
+                        inv_stored = cand
+                        break
                 except Exception:
                     pass
 
@@ -268,24 +285,27 @@ async def handle_parameter_count(
         subject = disp_family
 
     highlights: list[str] = []
-    if len(meta_list) > 1 and breakdown_by_pcode:
-        for m in meta_list:
-            cnt = breakdown_by_pcode.get(m["pcode"], 0)
-            highlights.append(f"{m['pcode']} {m['descriptor']}: {cnt:,}")
+    if len(meta_list) > 1:
+        codes_str = ", ".join(f"{m['pcode']} ({m['descriptor']})" for m in meta_list)
+        highlights.append(f"Parameter codes included: {codes_str}")
 
+    now_iso = datetime.now(timezone.utc).isoformat()
     artifact_id = uuid.uuid4().hex
-    artifact_payload = {
+    artifact_payload: dict[str, Any] = {
         "station_id": station_id,
         "family": family_name,
         "total_count": total_count,
         "parameter_codes": pcodes,
         "parameters": meta_list,
-        "breakdown": breakdown_by_pcode,
         "request_url": req_url,
         "date_lower": start_date,
         "date_upper": end_date,
         "temporal": temporal_meta,
+        "retrieved_at": now_iso,
     }
+    if breakdown_by_pcode:
+        artifact_payload["lifetime_breakdown_from_inventory"] = breakdown_by_pcode
+
     artifact_metadata = {
         "count": total_count,
         "station_id": station_id,
@@ -296,6 +316,7 @@ async def handle_parameter_count(
         "date_lower": start_date,
         "date_upper": end_date,
         "temporal": temporal_meta,
+        "retrieved_at": now_iso,
     }
 
     summary = ResultSummary(

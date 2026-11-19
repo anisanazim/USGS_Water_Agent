@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import uuid
 from typing import Any
 
@@ -136,9 +137,10 @@ async def handle_spatial(
     inline_items = [_format_station_line(station) for station in stations]
 
     artifact_id = uuid.uuid4().hex
+    now_iso = stored.provenance.get("retrieved_at") or datetime.now(timezone.utc).isoformat()
     artifact_content: dict[str, Any] = {
         "source_urls": stored.provenance.get("source_urls", []),
-        "retrieved_at": stored.provenance.get("retrieved_at", ""),
+        "retrieved_at": now_iso,
         "pcodes": pcodes if is_discrete else [plan.filters.get("parameter_code", "")],
         "count": len(stations),
         "stations": stored.items.get("stations", []),
@@ -152,7 +154,7 @@ async def handle_spatial(
         "modality": "discrete" if is_discrete else "continuous",
         "source_urls": stored.provenance.get("source_urls", []),
         "pcodes": pcodes if is_discrete else [plan.filters.get("parameter_code", "")],
-        "retrieved_at": artifact_content["retrieved_at"],
+        "retrieved_at": now_iso,
         "artifact_id": artifact_id,
     }
 

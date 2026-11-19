@@ -296,7 +296,8 @@ async def _run_case(handler_kind: str, n: int):
     reply_text = context.reply.call_args[0][0]
     reply_data = context.reply.call_args.kwargs["data"]
     artifact_desc = process.create_artifact.call_args.kwargs["description"]
-    return reply_text, reply_data, artifact_desc, all_tokens, tail_tokens
+    art_meta = process.create_artifact.call_args.kwargs["metadata"]
+    return reply_text, reply_data, artifact_desc, art_meta, all_tokens, tail_tokens
 
 
 HANDLER_KINDS = [
@@ -314,12 +315,16 @@ HANDLER_KINDS = [
 @pytest.mark.parametrize("handler_kind", HANDLER_KINDS)
 @pytest.mark.parametrize("count", [3, 60])
 async def test_reply_contract_across_all_data_handlers(handler_kind: str, count: int):
-    reply_text, reply_data, artifact_desc, all_tokens, tail_tokens = await _run_case(handler_kind, count)
+    reply_text, reply_data, artifact_desc, art_meta, all_tokens, tail_tokens = await _run_case(handler_kind, count)
 
     # Rule 2 & 5: Status wording and structured result block
     assert "result" in reply_data
     assert reply_data["result"]["complete"] is True
     assert reply_data["result"]["artifact_description"] == artifact_desc
+
+    # Rule 6: Artifact metadata includes retrieved_at UTC ISO timestamp
+    assert "retrieved_at" in art_meta
+    assert isinstance(art_meta["retrieved_at"], str) and art_meta["retrieved_at"].strip()
 
     if handler_kind == "count":
         assert "This is the exact total reported by USGS." in reply_text
@@ -339,7 +344,10 @@ async def test_reply_contract_across_all_data_handlers(handler_kind: str, count:
     if handler_kind != "count":
         assert "will not return additional" in reply_text
 
-    if count == 3:
+    if handler_kind == "count":
+        assert "Parameter codes included:" in reply_text
+        assert "| Parameter Code |" not in reply_text
+    elif count == 3:
         for token in all_tokens:
             assert token not in reply_text, f"{handler_kind} (n=3) leaked item token {token!r} in reply"
     else:
@@ -429,7 +437,10 @@ async def test_reply_contract_incomplete_variants(handler_kind: str):
     reply_text = context.reply.call_args[0][0]
     reply_data = context.reply.call_args.kwargs["data"]
     artifact_desc = process.create_artifact.call_args.kwargs["description"]
+    art_meta = process.create_artifact.call_args.kwargs["metadata"]
 
+    assert "retrieved_at" in art_meta
+    assert isinstance(art_meta["retrieved_at"], str) and art_meta["retrieved_at"].strip()
     assert "incomplete" in reply_text.lower()
     assert "will not return additional" not in reply_text
     assert "This is the complete result" not in reply_text
@@ -477,5 +488,37 @@ def test_no_process_log_passes_records_or_rows_data():
                             elif isinstance(kw.value, ast.Name) and kw.value.id in forbidden_keys:
                                 violations.append(f"{py_file}:{node.lineno} passes variable {kw.value.id!r} as data")
     assert not violations, f"Found process.log calls passing records/readings/rows: {violations}"
+
+
+@pytest.mark.asyncio
+async def test_inventory_empty_artifact_has_retrieved_at():
+    """Empty inventory artifacts (0 characteristics) must include retrieved_at in metadata."""
+    context, process = _make_mocks()
+    ctx = RequestContext(request_id="test-empty-inv")
+    handle = ctx.store.put(
+        kind="inventory",
+        items={
+            "monitoring_location_id": "USGS-0423205010",
+            "parameters": {},
+            "discrete_parameters": {},
+            "discrete_total_observations": 0,
+        },
+        summary="empty inventory",
+        sample=[],
+        provenance={"source_urls": ["https://example.test/summary"]},
+        count=0,
+    )
+    plan = QueryPlan(
+        intent="station_inventory",
+        inventory_ref=handle.ref,
+        filters={},
+        semantic={"station": "USGS-0423205010"},
+    )
+    await handle_inventory(context, process, plan, ctx, request="What data is at USGS-0423205010?")
+    assert process.create_artifact.called
+    meta = process.create_artifact.call_args.kwargs["metadata"]
+    assert "retrieved_at" in meta
+    assert isinstance(meta["retrieved_at"], str) and meta["retrieved_at"].strip()
+
 
 

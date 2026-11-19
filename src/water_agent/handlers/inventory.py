@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import uuid
 from typing import Any
@@ -49,6 +50,7 @@ async def handle_inventory(
         "ref": plan.inventory_ref,
         "source_urls": stored.provenance.get("source_urls", []),
         "artifact_id": artifact_id,
+        "retrieved_at": stored.provenance.get("retrieved_at") or datetime.now(timezone.utc).isoformat(),
     }
 
     # Check if the user asked about a SPECIFIC parameter (Workflow 3)

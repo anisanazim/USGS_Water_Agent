@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -155,6 +156,8 @@ async def send_result(
     description = artifact_description(s)
     meta = dict(artifact_metadata)
     meta["description"] = description
+    if "retrieved_at" not in meta or not meta["retrieved_at"]:
+        meta["retrieved_at"] = datetime.now(timezone.utc).isoformat()
 
     await process.create_artifact(
         mimetype="application/json",

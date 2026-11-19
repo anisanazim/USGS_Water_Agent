@@ -372,11 +372,13 @@ async def handle_observation(
         for r in readings
     ]
 
+    now_iso = datetime.now(timezone.utc).isoformat()
     artifact_content = {
         "filters": plan.filters,
         "date_lower": date_lower,
         "date_upper": date_upper,
         "temporal": temporal_meta,
+        "retrieved_at": now_iso,
         "readings": readings,
     }
     artifact_metadata = {
@@ -387,6 +389,7 @@ async def handle_observation(
         "date_lower": date_lower,
         "date_upper": date_upper,
         "temporal": temporal_meta,
+        "retrieved_at": now_iso,
     }
 
     most_recent_line = (
