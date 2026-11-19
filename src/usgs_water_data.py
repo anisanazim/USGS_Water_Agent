@@ -75,11 +75,12 @@ class USGSWaterDataFetcher:
 
     def __init__(self, base_url: str = USGS_BASE_URL, timeout: float = DEFAULT_TIMEOUT_SECONDS):
         self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
         from water_agent.circuit_breaker import CircuitBreaker
         from water_agent.config import USGS_API_KEY, settings
 
-        headers = {"X-Api-Key": USGS_API_KEY} if USGS_API_KEY else {}
-        self._client = httpx.AsyncClient(timeout=timeout, headers=headers)
+        self._headers = {"X-Api-Key": USGS_API_KEY} if USGS_API_KEY else {}
+        self._client = httpx.AsyncClient(timeout=timeout, headers=self._headers)
         self.circuit_breaker = CircuitBreaker(
             name="usgs_ogc_api",
             failure_threshold=settings.circuit_breaker_failure_threshold,
@@ -94,8 +95,7 @@ class USGSWaterDataFetcher:
     def _ensure_client(self) -> httpx.AsyncClient:
         """Ensure the underlying AsyncClient is open, recreating it if previously closed."""
         if getattr(self._client, "is_closed", False):
-            headers = {"X-Api-Key": USGS_API_KEY} if USGS_API_KEY else {}
-            self._client = httpx.AsyncClient(timeout=self.timeout, headers=headers)
+            self._client = httpx.AsyncClient(timeout=self.timeout, headers=self._headers)
         return self._client
 
     async def __aenter__(self) -> "USGSWaterDataFetcher":

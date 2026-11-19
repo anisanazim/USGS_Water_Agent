@@ -431,3 +431,22 @@ async def test_daily_path_invalid_date_or_explicit_datetime_fails_closed(filters
     assert expected_bad_token in reply_msg
     assert "YYYY-MM-DD" in reply_msg
     assert not mock_fetcher.fetch_daily_values.called
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_recreates_closed_client_with_headers(monkeypatch):
+    """Calling _ensure_client() after aclose() recreates client with same headers and no NameError."""
+    monkeypatch.setattr("water_agent.config.USGS_API_KEY", "test-api-key-12345")
+    fetcher = USGSWaterDataFetcher()
+    try:
+        assert fetcher._headers.get("X-Api-Key") == "test-api-key-12345"
+        assert fetcher._client.headers.get("X-Api-Key") == "test-api-key-12345"
+        await fetcher.aclose()
+        assert fetcher._client.is_closed is True
+
+        recreated = fetcher._ensure_client()
+        assert recreated.is_closed is False
+        assert recreated.headers.get("X-Api-Key") == "test-api-key-12345"
+    finally:
+        await fetcher.aclose()
+
