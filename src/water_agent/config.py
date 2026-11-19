@@ -131,10 +131,13 @@ class WaterAgentSettings(BaseSettings):
         return v
 
     # Reply / Output Configuration
+    # Per iChatBio lead guidance: artifact content must not appear in context.reply
+    # or process.log. Artifacts carry the data; replies carry summary facts plus the
+    # artifact pointer. Default is 0 so items are not inlined into the reply text.
     inline_items_max: int = Field(
-        default=25,
+        default=0,
         validation_alias="INLINE_ITEMS_MAX",
-        description="Maximum number of items to inline in a reply; above this only the artifact is referenced",
+        description="Maximum number of items to inline in a reply; defaults to 0 so artifacts carry the data",
     )
 
     # Circuit Breaker Configuration

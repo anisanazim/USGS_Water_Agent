@@ -103,6 +103,10 @@ def extract_pcodes_and_family(
     search_term = ""
     if isinstance(raw_pcode, str) and not raw_pcode.isdigit() and "[" not in raw_pcode and "{" not in raw_pcode:
         search_term = raw_pcode.strip()
+    if not search_term and plan.semantic.get("parameter"):
+        sem_p = str(plan.semantic.get("parameter")).strip()
+        if not sem_p.isdigit() and "[" not in sem_p and "{" not in sem_p:
+            search_term = sem_p
     if not search_term:
         req_lower = request.lower()
         for fam_key in sorted(DISCRETE_FAMILIES.keys(), key=len, reverse=True):
@@ -263,34 +267,11 @@ async def handle_parameter_count(
     else:
         subject = disp_family
 
-    inline_header: str | None = None
-    inline_items: list[str] | None = None
-    if len(meta_list) > 1:
-        if breakdown_by_pcode:
-            count_col = (
-                "Lifetime observations (all dates)"
-                if spec is not None
-                else "Station Observations"
-            )
-            inline_header = (
-                "Constituent parameter codes included in this query:\n\n"
-                f"| Parameter Code | Parameter Description | Unit | {count_col} |\n"
-                "| :---: | --- | :---: | :---: |"
-            )
-            inline_items = [
-                f"| **{m['pcode']}** | {m['descriptor']} | {m['unit'] or '-'} | {breakdown_by_pcode.get(m['pcode'], 0):,} |"
-                for m in meta_list
-            ]
-        else:
-            inline_header = (
-                "Constituent parameter codes included in this query:\n\n"
-                "| Parameter Code | Parameter Description | Unit |\n"
-                "| :---: | --- | :---: |"
-            )
-            inline_items = [
-                f"| **{m['pcode']}** | {m['descriptor']} | {m['unit'] or '-'} |"
-                for m in meta_list
-            ]
+    highlights: list[str] = []
+    if len(meta_list) > 1 and breakdown_by_pcode:
+        for m in meta_list:
+            cnt = breakdown_by_pcode.get(m["pcode"], 0)
+            highlights.append(f"{m['pcode']} {m['descriptor']}: {cnt:,}")
 
     artifact_id = uuid.uuid4().hex
     artifact_payload = {
@@ -327,8 +308,7 @@ async def handle_parameter_count(
         kind="count",
         window=window,
         interpretation=spec.format_interpretation() if spec is not None else None,
-        inline_header=inline_header,
-        inline_items=inline_items,
+        highlights=highlights,
         notes=[
             "Modality: discrete sample measurements (not continuous sensors).",
             "Sample media: Water (samples in other media such as sediment/tissue are excluded).",

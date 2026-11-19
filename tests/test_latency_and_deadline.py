@@ -406,7 +406,7 @@ async def test_observation_heading_and_family_display_name(mock_context):
     assert "This is the complete result; nothing was truncated." in reply_text
     assert "Most recent 10 observations:" not in reply_text
     assert "Continuous sensor data is also available" not in reply_text
-    assert "| Date | Time | Value | Unit | Parameter Code |" in reply_text
+    assert "| Date | Time | Value | Unit | Parameter Code |" not in reply_text
     assert "2022-01-01" in reply_text and "2022-01-15" in reply_text
 
     # Readable family name check (no underscores like dissolved_oxygen)

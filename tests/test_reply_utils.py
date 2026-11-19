@@ -70,7 +70,7 @@ def test_build_reply_text_inlines_when_under_limit():
         notes=["Modality: discrete sample measurements (not continuous sensors)."],
     )
     desc = artifact_description(s)
-    text = build_reply_text(s, desc)
+    text = build_reply_text(s, desc, inline_max=25)
 
     assert "Retrieved **all 3** records of Calcium (00915), mg/l at **USGS-0423205010**." in text
     assert "This is the complete result; nothing was truncated." in text
@@ -97,7 +97,7 @@ def test_build_reply_text_omits_inline_when_over_limit():
         inline_items=items,
     )
     desc = artifact_description(s)
-    text = build_reply_text(s, desc)
+    text = build_reply_text(s, desc, inline_max=25)
 
     assert "Retrieved **all 60** stations for calcium in **North Carolina**." in text
     assert "This is the complete result; nothing was truncated." in text
@@ -168,7 +168,7 @@ def test_build_reply_text_count_kind():
         inline_items=["| **00665** | Phosphorus, unfiltered |"],
     )
     desc = artifact_description(s)
-    text = build_reply_text(s, desc)
+    text = build_reply_text(s, desc, inline_max=25)
 
     assert "Found **70** observations of phosphorus at **USGS-0423205010**. This is the exact total reported by USGS." in text
     assert f'The count and per-code breakdown are in the artifact created in this step: "{desc}".' in text
@@ -192,7 +192,7 @@ def test_magicmock_warning_is_ignored():
     )
     assert s.warning is None
     assert s.complete is True
-    text = build_reply_text(s, artifact_description(s))
+    text = build_reply_text(s, artifact_description(s), inline_max=25)
     assert "This is the complete result; nothing was truncated." in text
     assert "r1" in text
 
@@ -241,5 +241,5 @@ async def test_send_result_creates_artifact_and_sends_structured_reply():
         "retrieved": 2,
         "complete": True,
         "artifact_description": desc,
-        "items_inlined": True,
+        "items_inlined": False,
     }

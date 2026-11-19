@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from datetime import date, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -117,9 +119,9 @@ async def _run_case(handler_kind: str, n: int):
             semantic={"parameter": "streamflow"},
         )
         await handle_observation(context, process, plan, ctx, water_data_fetcher=fetcher)
-        all_tokens = [f"{2001.5 + i:g}" for i in range(n)]
-        # Exclude index n-1 (newest / "Most recent value" highlight) and index 0 date (earliest highlight);
-        # check older/end items from the table.
+        # Exclude index n-1 (newest / "Most recent value" highlight) which legitimately appears in highlight;
+        # older values appear only when items are inlined.
+        all_tokens = [f"{2001.5 + i:g}" for i in range(n - 1)]
         tail_tokens = [f"{2001.5 + i:g}" for i in range(min(5, n - 1))]
         if n >= 10:
             tail_tokens.append((base + timedelta(days=2)).isoformat())
@@ -331,15 +333,16 @@ async def test_reply_contract_across_all_data_handlers(handler_kind: str, count:
     # Rule 3: Reply names the exact artifact description passed to create_artifact
     assert artifact_desc in reply_text
 
-    # Rule 1: Complete or nothing (3 -> all inlined; 60 -> none inlined)
+    # Rule 1: No item rows inlined (inline_items_max defaults to 0); pointer sentence appears
+    assert reply_data["result"]["items_inlined"] is False
+    assert "are in the artifact created in this step" in reply_text
+    if handler_kind != "count":
+        assert "will not return additional" in reply_text
+
     if count == 3:
-        assert reply_data["result"]["items_inlined"] is True
         for token in all_tokens:
-            assert token in reply_text, f"{handler_kind} (n=3) missing inlined token {token!r}"
+            assert token not in reply_text, f"{handler_kind} (n=3) leaked item token {token!r} in reply"
     else:
-        assert reply_data["result"]["items_inlined"] is False
-        if handler_kind != "count":
-            assert "will not return additional" in reply_text
         for token in tail_tokens:
             assert token not in reply_text, f"{handler_kind} (n=60) leaked item token {token!r} in reply"
 
@@ -444,4 +447,35 @@ async def test_reply_contract_incomplete_variants(handler_kind: str):
 
     for bad in FORBIDDEN_SUBSTRINGS:
         assert bad not in reply_text
+
+
+def test_no_process_log_passes_records_or_rows_data():
+    """Verify per iChatBio guidance that no process.log call passes records/readings/rows as data."""
+    src_dir = Path(__file__).resolve().parent.parent / "src"
+    forbidden_keys = {"records", "readings", "rows"}
+    violations = []
+    for py_file in src_dir.rglob("*.py"):
+        tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                is_process_log = (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "log"
+                    and (
+                        (isinstance(func.value, ast.Name) and func.value.id == "process")
+                        or (isinstance(func.value, ast.Attribute) and func.value.attr == "process")
+                    )
+                )
+                if is_process_log:
+                    for kw in node.keywords:
+                        if kw.arg == "data":
+                            if isinstance(kw.value, ast.Dict):
+                                for key in kw.value.keys:
+                                    if isinstance(key, ast.Constant) and key.value in forbidden_keys:
+                                        violations.append(f"{py_file}:{node.lineno} passes key {key.value!r} in data")
+                            elif isinstance(kw.value, ast.Name) and kw.value.id in forbidden_keys:
+                                violations.append(f"{py_file}:{node.lineno} passes variable {kw.value.id!r} as data")
+    assert not violations, f"Found process.log calls passing records/readings/rows: {violations}"
+
 

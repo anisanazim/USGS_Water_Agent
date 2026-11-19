@@ -302,7 +302,8 @@ async def test_agent_handles_discrete_spatial_citation_contract():
     assert "Primary parameter:" not in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
     assert "Sample media: Water (samples in other media such as sediment/tissue are excluded)." in reply_text
-    assert "USGS-02087500" in reply_text
+    assert "USGS-02087500" not in reply_text
+    assert "All 1 stations are in the artifact created in this step" in reply_text
 
 
 @pytest.mark.asyncio
@@ -528,7 +529,7 @@ async def test_shape_2b_station_inventory_dual_modality():
     assert "~8,402 records" not in reply_text
     assert "### Discrete Samples" in reply_text
     assert "Information group excluded" in reply_text
-    assert "Calcium, water, filtered**: 105 observations" in reply_text
+    assert "Inorganics**: 1 characteristics, 105 observations" in reply_text
     assert "Sample media: Water (samples in other media such as sediment/tissue are excluded)." in reply_text
 
 
@@ -595,7 +596,7 @@ async def test_shape_2d_values_query_table_and_disclosures():
     assert "Sample dates range from 2023-05-01 to 2023-05-14." in reply_text
     assert expected_desc in reply_text
     assert mock_process.create_artifact.call_args.kwargs["description"] == expected_desc
-    assert "| Date | Time | Value | Unit | Parameter Code |" in reply_text
+    assert "| Date | Time | Value | Unit | Parameter Code |" not in reply_text
     assert "2023-05-01" in reply_text and "2023-05-14" in reply_text
     assert "Modality: discrete sample measurements (not continuous sensors)" in reply_text
     assert "Sample media: Water (samples in other media such as sediment/tissue are excluded)." in reply_text
@@ -604,7 +605,7 @@ async def test_shape_2d_values_query_table_and_disclosures():
         "retrieved": 14,
         "complete": True,
         "artifact_description": expected_desc,
-        "items_inlined": True,
+        "items_inlined": False,
     }
 
 
@@ -864,7 +865,8 @@ async def test_count_windowed_reply_labels_lifetime_breakdown():
     )
 
     reply_text = mock_context.reply.call_args[0][0]
-    assert "Lifetime observations (all dates)" in reply_text
+    assert "00665" in reply_text and "500" in reply_text
+    assert "Lifetime observations (all dates)" not in reply_text
     assert "Station Observations" not in reply_text
 
 

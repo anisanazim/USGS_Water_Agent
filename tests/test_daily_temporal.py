@@ -268,7 +268,7 @@ async def test_latest_n_with_fixed_limit_not_marked_truncated():
     assert "capped" not in reply_text.lower()
     meta = mock_process.create_artifact.call_args[1]["metadata"]
     assert meta["truncated"] is False
-    assert mock_context.reply.call_args.kwargs["data"]["result"]["items_inlined"] is True
+    assert mock_context.reply.call_args.kwargs["data"]["result"]["items_inlined"] is False
 
 
 @pytest.mark.asyncio
