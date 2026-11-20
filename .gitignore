@@ -70,7 +70,7 @@ water_agent/metadata/references/__pycache__/
 # Intermediate offline scraper dumps (runtime only loads discrete_families.json)
 metadata/raw/references/characteristics_*.csv
 metadata/raw/references/characteristics_*.json
-metadata/raw/references/characteristics_filtered.csv
+!metadata/raw/references/characteristics_filtered.csv
 
 # Additional scratch docs
 PROJECT_NOTES.md

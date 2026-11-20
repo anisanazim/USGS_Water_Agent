@@ -171,8 +171,12 @@ def _get_parameter_units_map() -> dict[str, str]:
     return units
 
 
+_CATALOG_FILE_MISSING_LOGGED: bool = False
+
+
 def search_catalog_characteristics(term: str, limit: int = 15) -> list[dict[str, Any]]:
     """Search characteristics catalog for parameters outside the 9 verified families."""
+    global _CATALOG_FILE_MISSING_LOGGED
     ref_path = (
         Path(__file__).resolve().parents[3]
         / "metadata"
@@ -181,6 +185,9 @@ def search_catalog_characteristics(term: str, limit: int = 15) -> list[dict[str,
         / "characteristics_filtered.csv"
     )
     if not ref_path.exists():
+        if not _CATALOG_FILE_MISSING_LOGGED:
+            logger.warning("Characteristics catalog file missing: %s", ref_path)
+            _CATALOG_FILE_MISSING_LOGGED = True
         return []
 
     term_clean = term.strip().lower()

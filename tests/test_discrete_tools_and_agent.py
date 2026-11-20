@@ -622,6 +622,25 @@ def test_step_3b_outside_verified_families_mercury():
     assert any(c["pcode"] == "64755" or c["pcode"] == "30280" for c in res.candidates)
 
 
+def test_search_catalog_characteristics_missing_file_logs_warning_once(caplog):
+    """When the catalog file is missing, search_catalog_characteristics logs WARNING once."""
+    import logging
+    from pathlib import Path
+    from unittest.mock import patch
+    import water_agent.metadata.discrete_families as df_mod
+
+    df_mod._CATALOG_FILE_MISSING_LOGGED = False
+    with caplog.at_level(logging.WARNING):
+        with patch.object(Path, "exists", return_value=False):
+            res1 = df_mod.search_catalog_characteristics("mercury")
+            res2 = df_mod.search_catalog_characteristics("mercury")
+            assert res1 == []
+            assert res2 == []
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING and "Characteristics catalog file missing" in r.message]
+    assert len(warnings) == 1
+
+
 @pytest.mark.asyncio
 async def test_step_3d_mixed_modality_routing_and_disclaimer(resolver):
     """Step 3d: Mixed-modality parameters route to discrete Samples API with disclaimer that continuous sensors also exist."""
