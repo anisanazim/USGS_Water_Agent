@@ -23,7 +23,7 @@ Finds which monitoring stations measure a parameter across a state or county.
   * *"Where is calcium monitored in North Carolina?"* (Returns 3,663 distinct stations across 4 calcium forms in NC)
   * *"Where is nitrate monitored in Wake County, NC?"* (Returns distinct stations across 13 nitrate forms)
   * *"Where is streamflow monitored in Wake County, North Carolina?"* (Routes to continuous sensor network)
-* **Response:** Total distinct station count (with server-side deduplication notice), per-parameter breakdown table (5-digit NWIS code, descriptor, unit, station count), first 50 station IDs in chat, and complete station ID list registered in a downloadable JSON artifact.
+* **Response:** Summary facts including total distinct station count (with server-side deduplication notice) and per-parameter breakdown, with the complete station list registered in a named downloadable artifact.
 
 ### 2.2 Dual-Modality Station Inventory ("What is measured at station X?")
 Produces a comprehensive site audit of all sensors and chemical constituents monitored at a specific USGS location.
@@ -47,7 +47,7 @@ Retrieves and tabulates actual laboratory water quality measurement records.
 * **Examples:**
   * *"Show me the calcium values at USGS-0423205010."*
   * *"Show me the nitrate readings at USGS-02087500."*
-* **Response:** Observation count summary, a 10-row markdown preview table (`| Date | Time | Value | Unit | Parameter Code | Descriptor |`), and the full observation dataset embedded as a downloadable session artifact.
+* **Response:** Summary facts including observation count, sample date span, and completeness status, with the full observation dataset registered in a named downloadable artifact.
 
 ### 2.5 Continuous Daily Sensor Observations (Hydrology & Streamflow)
 Retrieves the most recent daily statistical observations from automated sensor stations.
