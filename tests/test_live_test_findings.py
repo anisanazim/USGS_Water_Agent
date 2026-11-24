@@ -151,6 +151,46 @@ async def test_routing_00300_discrete_mixed_none_no_statistic_uses_samples(modal
 
 
 @pytest.mark.asyncio
+async def test_routing_00300_modality_discrete_wins_over_statistic_id():
+    context, process = _make_mocks()
+    ctx = RequestContext(request_id="route-disc-over-stat")
+    samples_fetcher = AsyncMock(spec=USGSSamplesFetcher)
+    samples_fetcher.fetch_results = AsyncMock(
+        return_value=DiscreteFetchResult(
+            records=[
+                {
+                    "activity_date": "2024-05-10",
+                    "activity_time": "10:00:00",
+                    "result_value": 8.4,
+                    "unit": "mg/l",
+                    "pcode": "00300",
+                }
+            ],
+            total_count=1,
+            source_urls=["https://example.test/samples"],
+        )
+    )
+    daily_fetcher = AsyncMock(spec=USGSWaterDataFetcher)
+    plan = QueryPlan(
+        intent="observation",
+        modality=ParameterModality.DISCRETE,
+        filters={
+            "monitoring_location_id": "USGS-02087500",
+            "parameter_code": "00300",
+            "statistic_id": "00001",
+        },
+    )
+    await handle_observation(
+        context, process, plan, ctx, samples_fetcher=samples_fetcher, water_data_fetcher=daily_fetcher
+    )
+    assert samples_fetcher.fetch_results.called
+    assert not daily_fetcher.fetch_daily_values.called
+    logged = " ".join(call.args[0] for call in process.log.call_args_list if call.args)
+    assert "reason: modality=discrete" in logged
+    assert "statistic_id" not in logged
+
+
+@pytest.mark.asyncio
 async def test_daily_continuous_zero_rows_no_fallback_no_artifact():
     context, process = _make_mocks()
     ctx = RequestContext(request_id="route-cont-zero")

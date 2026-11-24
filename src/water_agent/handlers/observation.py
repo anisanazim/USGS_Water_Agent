@@ -86,7 +86,7 @@ async def handle_observation(
     # Determine modality: check if parameter is discrete or continuous
     is_continuous = (
         plan.modality == ParameterModality.CONTINUOUS
-        or bool(plan.filters.get("statistic_id"))
+        or (plan.modality is None and bool(plan.filters.get("statistic_id")))
     )
     param_code = plan.filters.get("parameter_code")
     query_codes: list[str] = []
@@ -156,9 +156,9 @@ async def handle_observation(
     # 1. Discrete Samples API Path (Workflow 4)
     if discrete_param and not is_continuous:
         pcode_arg = query_codes if len(query_codes) > 1 else (query_codes[0] if query_codes else param_code)
-        mod_label = plan.modality.value if plan.modality else "none"
+        mod_reason = f"modality={plan.modality.value}" if plan.modality is not None else "modality=none, no statistic_id"
         await process.log(
-            f"Routing to discrete Samples API (reason: modality={mod_label}, no statistic_id) "
+            f"Routing to discrete Samples API (reason: {mod_reason}) "
             f"for {discrete_param.descriptor} ({param_code}) with codes: {query_codes or [param_code]}."
         )
         samples_params: dict[str, Any] = {
@@ -326,7 +326,7 @@ async def handle_observation(
     route_reasons = []
     if plan.modality == ParameterModality.CONTINUOUS:
         route_reasons.append("modality=continuous")
-    if plan.filters.get("statistic_id"):
+    elif plan.modality is None and plan.filters.get("statistic_id"):
         route_reasons.append(f"statistic_id={plan.filters['statistic_id']}")
     if not route_reasons:
         mod_label = plan.modality.value if plan.modality else "none"
