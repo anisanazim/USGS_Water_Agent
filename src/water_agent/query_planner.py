@@ -63,6 +63,7 @@ about USGS water monitoring data and plan them across 5 core workflows into an e
 4. Discrete Observation Values ("Show me the values/readings for X at station Y")
    - Retrieves actual laboratory water quality measurement records (e.g. calcium, nutrients, metals).
    - Resolve parameter_code and monitoring_location_id into filters. Do NOT call station_inventory.
+   - If the user asks about a family (e.g. nitrate, phosphorus, calcium, organic carbon), set parameter_code="<family_name>" (e.g. "nitrate") so all codes in the family are searched. Only use a specific 5-digit code when the user gives one or names a specific form (e.g. "filtered orthophosphate", "nitrate plus nitrite").
    - Result plan: {"intent": "observation", "modality": "discrete", "semantic": {...}, "filters": {"parameter_code": "<pcode>", "monitoring_location_id": "<station_id>"}}
 
 5. Continuous Daily Values (Hydrology & Streamflow)
