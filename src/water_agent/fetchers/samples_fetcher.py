@@ -592,6 +592,7 @@ class USGSSamplesFetcher:
         return {
             "activity_date": iso_date,
             "activity_time": row.get("Activity_StartTime") or row.get("ActivityStartTime"),
+            "activity_time_zone": row.get("Activity_StartTimeZone") or row.get("ActivityStartTime/TimeZoneCode"),
             "result_value": val,
             "unit": row.get("Result_MeasureUnit") or row.get("ResultMeasure/MeasureUnitCode"),
             "pcode": row.get("USGSpcode") or row.get("ParameterCode"),

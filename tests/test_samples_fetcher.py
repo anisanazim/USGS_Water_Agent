@@ -618,3 +618,29 @@ async def test_stream_project_logs_single_warning_for_unparseable_row_dates(capl
     assert len(warnings) == 1
     assert "2" in warnings[0].message
 
+
+def test_project_result_row_preserves_activity_time_zone():
+    """_project_result_row retains activity_time_zone from Activity_StartTimeZone."""
+    fetcher = USGSSamplesFetcher()
+    projected = fetcher._project_result_row(
+        {
+            "Activity_StartDate": "2024-06-01",
+            "Activity_StartTime": "10:15:00",
+            "Activity_StartTimeZone": "EST",
+            "Result_Measure": "7.5",
+        }
+    )
+    assert projected["activity_time"] == "10:15:00"
+    assert projected["activity_time_zone"] == "EST"
+
+    projected_wqx = fetcher._project_result_row(
+        {
+            "ActivityStartDate": "2024-06-01",
+            "ActivityStartTime": "10:15:00",
+            "ActivityStartTime/TimeZoneCode": "EDT",
+            "ResultMeasureValue": "7.5",
+        }
+    )
+    assert projected_wqx["activity_time_zone"] == "EDT"
+
+
