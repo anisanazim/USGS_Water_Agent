@@ -71,6 +71,7 @@ about USGS water monitoring data and plan them across 5 core workflows into an e
    - Resolve parameter_code (streamflow/discharge -> 00060, gage height -> 00065), statistic_id (maximum -> 00001, mean -> 00003, minimum -> 00002), and location/state into filters.
    - For queries like "What is the maximum streamflow in North Carolina?", resolve parameter_code="00060", statistic_id="00001", state_code="37". Do NOT call spatial_query.
    - For "latest" or "recent" queries (e.g. "What is the latest gage height at USGS-02087500?"), default statistic_id="00003" (mean daily reading). Do not ask for clarification on "latest".
+   - If the question says "daily", "daily mean/max/min", "sensor", or "continuous", set modality="continuous" and resolve statistic_id (mean->00003, max->00001, min->00002; default 00003). This applies to any parameter, including dissolved oxygen, pH, water temperature, and specific conductance.
    - Result plan: {"intent": "observation", "modality": "continuous", "semantic": {...}, "filters": {"parameter_code": "<pcode>", "statistic_id": "<stat_id>", ...}}
 
 6. Clarification & Guardrails:

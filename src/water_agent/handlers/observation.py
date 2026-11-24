@@ -21,10 +21,14 @@ from water_agent.handlers.common import (
 from water_agent.handlers.reply_utils import ResultSummary, send_result
 from water_agent.metadata.discrete_families import (
     INORGANIC_CARBON_UNSUPPORTED_MSG,
+    DiscreteParameter,
+    get_catalog_parameter,
+    get_family_for_pcode,
     get_parameter,
     is_inorganic_carbon_request,
     resolve_discrete_parameter,
 )
+from water_agent.metadata.models import ParameterModality
 from water_agent.metadata.registry import daily_registry
 from water_agent.query_planner import QueryPlan
 from water_agent.results import RequestContext
@@ -53,6 +57,7 @@ def _normalize_daily_feature(feature: dict[str, Any]) -> dict[str, Any]:
         "unit": properties.get("unit_of_measure"),
         "time": properties.get("time"),
         "approval_status": properties.get("approval_status"),
+        "qualifier": properties.get("qualifier"),
     }
 
 
@@ -79,34 +84,66 @@ async def handle_observation(
         return
 
     # Determine modality: check if parameter is discrete or continuous
+    is_continuous = (
+        plan.modality == ParameterModality.CONTINUOUS
+        or bool(plan.filters.get("statistic_id"))
+    )
     param_code = plan.filters.get("parameter_code")
     query_codes: list[str] = []
     family_obj = None
     discrete_param = None
 
-    # Check if param_code is an exact 5-digit pcode
-    is_exact_pcode = bool(
-        param_code and str(param_code).strip().isdigit() and len(str(param_code).strip()) == 5
-    )
-
-    if is_exact_pcode:
-        discrete_param = get_parameter(str(param_code).strip())
-        if discrete_param:
-            query_codes = [str(param_code).strip()]
-            param_code = str(param_code).strip()
-    else:
-        p_term = param_code or plan.semantic.get("parameter") or plan.semantic.get("measurement") or ""
-        p_res = resolve_discrete_parameter(p_term)
-        if p_res.status == "clarification_needed" and p_res.query_type == "unsupported":
-            await context.reply(p_res.message, data=plan.model_dump())
+    # Handle comma-separated parameter codes (discrete multi-code queries)
+    if not is_continuous and isinstance(param_code, str) and "," in param_code:
+        raw_codes = [c.strip() for c in param_code.split(",") if c.strip()]
+        valid_params: list[DiscreteParameter] = []
+        unknown_codes: list[str] = []
+        for c in raw_codes:
+            p_obj = (get_parameter(c) or get_catalog_parameter(c)) if (c.isdigit() and len(c) == 5) else None
+            if p_obj is not None:
+                valid_params.append(p_obj)
+            else:
+                unknown_codes.append(c)
+        if not raw_codes or unknown_codes:
+            bad = ", ".join(unknown_codes) if unknown_codes else param_code
+            await process.log(f"Unrecognized parameter code(s): {bad}.")
+            await context.reply(
+                f"Unrecognized USGS parameter code(s): {bad}. "
+                "Please provide valid 5-digit USGS parameter codes.",
+                data=plan.model_dump(),
+            )
             return
-        if p_res.status == "resolved" and p_res.pcodes:
-            query_codes = p_res.pcodes
-            family_obj = p_res.family
-            dominant = p_res.pcodes[0]
-            discrete_param = get_parameter(dominant)
-            param_code = dominant
-            plan.filters["parameter_code"] = dominant
+        query_codes = [p.pcode for p in valid_params]
+        discrete_param = valid_params[0]
+        param_code = discrete_param.pcode
+        fam_objs = [get_family_for_pcode(c) for c in query_codes]
+        fam_names = {f.name for f in fam_objs if f is not None}
+        if len(fam_names) == 1 and all(f is not None for f in fam_objs):
+            family_obj = fam_objs[0]
+    else:
+        # Check if param_code is an exact 5-digit pcode
+        is_exact_pcode = bool(
+            param_code and str(param_code).strip().isdigit() and len(str(param_code).strip()) == 5
+        )
+
+        if is_exact_pcode:
+            discrete_param = get_parameter(str(param_code).strip())
+            if discrete_param:
+                query_codes = [str(param_code).strip()]
+                param_code = str(param_code).strip()
+        else:
+            p_term = param_code or plan.semantic.get("parameter") or plan.semantic.get("measurement") or ""
+            p_res = resolve_discrete_parameter(p_term)
+            if p_res.status == "clarification_needed" and p_res.query_type == "unsupported":
+                await context.reply(p_res.message, data=plan.model_dump())
+                return
+            if p_res.status == "resolved" and p_res.pcodes:
+                query_codes = p_res.pcodes
+                family_obj = p_res.family
+                dominant = p_res.pcodes[0]
+                discrete_param = get_parameter(dominant)
+                param_code = dominant
+                plan.filters["parameter_code"] = dominant
 
     spec, window_ok = await resolve_handler_temporal_window(context, process, plan)
     if not window_ok:
@@ -117,10 +154,12 @@ async def handle_observation(
     temporal_meta = spec.to_metadata() if spec is not None else None
 
     # 1. Discrete Samples API Path (Workflow 4)
-    if discrete_param:
+    if discrete_param and not is_continuous:
         pcode_arg = query_codes if len(query_codes) > 1 else (query_codes[0] if query_codes else param_code)
+        mod_label = plan.modality.value if plan.modality else "none"
         await process.log(
-            f"Routing discrete parameter {discrete_param.descriptor} ({param_code}) to Samples API with codes: {query_codes or [param_code]}."
+            f"Routing to discrete Samples API (reason: modality={mod_label}, no statistic_id) "
+            f"for {discrete_param.descriptor} ({param_code}) with codes: {query_codes or [param_code]}."
         )
         samples_params: dict[str, Any] = {
             "usgsPCode": pcode_arg,
@@ -167,15 +206,35 @@ async def handle_observation(
 
         if not samples_res.records:
             await process.log("No matching discrete observations found.")
+            codes_searched = query_codes if query_codes else ([param_code] if param_code else [])
+            codes_str = ", ".join(codes_searched)
+            zero_scope = plan.filters.get("monitoring_location_id") or "the requested area"
+            zero_window = (
+                f" for {date_lower or 'earliest'} to {date_upper or 'latest'}"
+                if (date_lower or date_upper)
+                else ""
+            )
+            if len(codes_searched) > 1:
+                fam_label = format_family_name(family_obj.name) if family_obj else "discrete"
+                head_line = f"No {fam_label} samples found (codes searched: {codes_str}) at {zero_scope}{zero_window}."
+            else:
+                head_line = (
+                    f"No {discrete_param.descriptor} samples found "
+                    f"(codes searched: {codes_str}) at {zero_scope}{zero_window}."
+                )
+            reply_parts = [head_line]
+            if spec is not None:
+                reply_parts.append(spec.format_interpretation())
+            if samples_res.source_urls:
+                reply_parts.append(f"Source URL: {', '.join(samples_res.source_urls)}")
+            reply_parts.append("Sample media: Water (samples in other media such as sediment/tissue are excluded).")
             await context.reply(
-                f"I resolved the filters for your question, but found no matching USGS discrete observations for {discrete_param.descriptor} ({param_code}).\n\n"
-                f"{interp_prefix}"
-                f"Sample media: Water (samples in other media such as sediment/tissue are excluded).",
+                "\n\n".join(reply_parts),
                 data=plan.model_dump(),
             )
             return
 
-        if is_exact_pcode or len(query_codes) <= 1:
+        if len(query_codes) <= 1:
             subject_desc = f"{discrete_param.descriptor} ({param_code}), {discrete_param.unit_of_measure}"
         else:
             fam_disp = format_family_name(family_obj.name) if family_obj else discrete_param.descriptor
@@ -252,7 +311,8 @@ async def handle_observation(
             inline_items=inline_items,
             notes=[
                 "Modality: discrete sample measurements (not continuous sensors). "
-                "This agent currently returns discrete samples only.",
+                "Continuous sensor data (daily values) is a separate dataset and was not included in this answer; "
+                "request daily values for this parameter and station to retrieve it.",
                 "Sample media: Water (samples in other media such as sediment/tissue are excluded).",
             ],
         )
@@ -263,6 +323,16 @@ async def handle_observation(
         return
 
     # 2. Continuous Daily Values Path (Workflow 5)
+    route_reasons = []
+    if plan.modality == ParameterModality.CONTINUOUS:
+        route_reasons.append("modality=continuous")
+    if plan.filters.get("statistic_id"):
+        route_reasons.append(f"statistic_id={plan.filters['statistic_id']}")
+    if not route_reasons:
+        mod_label = plan.modality.value if plan.modality else "none"
+        route_reasons.append(f"modality={mod_label}, no discrete parameter resolved")
+    await process.log(f"Routing to continuous Daily OGC API (reason: {', '.join(route_reasons)}).")
+
     dropped_keys = []
     ogc_filters: dict[str, str] = {}
     for k, v in plan.filters.items():
@@ -324,10 +394,28 @@ async def handle_observation(
 
     if not result.features:
         await process.log("No matching Daily observations found.")
-        interp_note = f" {interp_text}" if interp_text else ""
+        zero_param = (
+            plan.semantic.get("parameter")
+            or (f"parameter {plan.filters.get('parameter_code')}" if plan.filters.get("parameter_code") else "this parameter")
+        )
+        zero_loc_parts = []
+        if plan.semantic.get("county"):
+            zero_loc_parts.append(plan.semantic["county"])
+        if plan.semantic.get("state"):
+            zero_loc_parts.append(plan.semantic["state"])
+        zero_station = (
+            plan.filters.get("monitoring_location_id")
+            or (", ".join(zero_loc_parts) if zero_loc_parts else "the requested area")
+        )
+        zero_window = _format_ogc_window(dt) if dt else "recent dates"
+        no_daily_msg = (
+            f"No daily (continuous sensor) values were found for {zero_param} at {zero_station} for {zero_window}.\n\n"
+            "Discrete sample measurements are a separate dataset; request them explicitly if needed."
+        )
+        if interp_text:
+            no_daily_msg += f"\n\n{interp_text}"
         await context.reply(
-            "I resolved the filters for your question, but found no "
-            f"matching USGS Daily observations.{interp_note}",
+            no_daily_msg,
             data=plan.model_dump(),
         )
         return

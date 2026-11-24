@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import logging
 import uuid
 from typing import Any
 
 from ichatbio.agent_response import ResponseContext
+from usgs_water_data import USGSNotFoundError, USGSWaterDataFetcher
 from water_agent.config import settings
 from water_agent.handlers.common import (
     append_temporal_not_applied_note,
@@ -25,6 +27,7 @@ async def handle_inventory(
     plan: QueryPlan,
     ctx: RequestContext,
     request: str,
+    water_data_fetcher: USGSWaterDataFetcher | None = None,
 ) -> None:
     """Handle Workflow 2 (Dual-Modality Station Inventory) and Workflow 3 (Station Parameter Counts)."""
     stored = ctx.store.get(plan.inventory_ref, "inventory")
@@ -188,16 +191,45 @@ async def handle_inventory(
     total_chars = len(params_dict) + len(all_discrete_entries)
 
     if total_chars == 0:
-        await process.create_artifact(
-            mimetype="application/json",
-            description=f"USGS station inventory - all parameters at {station_id_str}, all dates (0 characteristics)",
-            content=json.dumps(stored.items, indent=2).encode("utf-8"),
-            metadata={**base_metadata, "count": 0},
-        )
-        ctx.store.set_artifact_id(plan.inventory_ref, artifact_id)
-        reply_msg = append_temporal_not_applied_note(
-            "I couldn't find any data parameters associated with that station.", plan
-        )
+        try:
+            if water_data_fetcher is not None:
+                loc_res = await water_data_fetcher.fetch_monitoring_locations(
+                    {"id": station_id_str}, limit=1
+                )
+            else:
+                import sys
+                agent_mod = sys.modules.get("agent")
+                daily_cls = (
+                    getattr(agent_mod, "USGSWaterDataFetcher", USGSWaterDataFetcher)
+                    if agent_mod
+                    else USGSWaterDataFetcher
+                )
+                async with daily_cls() as fetcher:
+                    loc_res = await fetcher.fetch_monitoring_locations(
+                        {"id": station_id_str}, limit=1
+                    )
+            features = getattr(loc_res, "features", None) or []
+            if not features:
+                base_msg = (
+                    f"USGS has no monitoring location with ID {station_id_str}. "
+                    "Please check the ID (format: USGS- followed by 8–15 digits)."
+                )
+            else:
+                props = features[0].get("properties", {}) if isinstance(features[0], dict) else {}
+                loc_name = props.get("monitoring_location_name") or props.get("name") or "unnamed location"
+                base_msg = f"{station_id_str} ({loc_name}) exists, but USGS lists no sensor or sample data for it."
+        except USGSNotFoundError:
+            base_msg = (
+                f"USGS has no monitoring location with ID {station_id_str}. "
+                "Please check the ID (format: USGS- followed by 8–15 digits)."
+            )
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Monitoring location lookup failed for %s: %s", station_id_str, exc
+            )
+            base_msg = "I couldn't find any data parameters associated with that station."
+
+        reply_msg = append_temporal_not_applied_note(base_msg, plan)
         await context.reply(reply_msg, data=plan.model_dump())
         return
 

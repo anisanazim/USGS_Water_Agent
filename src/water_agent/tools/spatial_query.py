@@ -106,6 +106,8 @@ class SpatialQueryTool:
                 pcodes=res.get("pcodes", []),
                 pcode_breakdown=breakdown_items,
                 mixed_modality=res.get("mixed_modality", False),
+                state_name=state_name,
+                county_name=county_name,
                 summary=res.get("summary", ""),
             )
 
@@ -138,6 +140,8 @@ class SpatialQueryTool:
             return {
                 "stations": sorted(list(station_ids)),
                 "request_url": result.source_urls[0] if result.source_urls else "",
+                "state_name": state_name,
+                "county_name": None,
             }
             
         # If county is provided, we need to intersect.ion for county queries
@@ -164,7 +168,9 @@ class SpatialQueryTool:
             return {
                 "stations": [],
                 "request_url": result.source_urls[0] if result.source_urls else "",
-                "metadata_url": ""
+                "metadata_url": "",
+                "state_name": state_name,
+                "county_name": county_name,
             }
             
         # Step B: Get all stations in the state that monitor this parameter
@@ -195,5 +201,7 @@ class SpatialQueryTool:
         return {
             "stations": enriched_stations,
             "request_url": result.source_urls[0] if result.source_urls else "",
-            "metadata_url": metadata_result.source_urls[0] if metadata_result.source_urls else ""
+            "metadata_url": metadata_result.source_urls[0] if metadata_result.source_urls else "",
+            "state_name": state_name,
+            "county_name": county_name,
         }

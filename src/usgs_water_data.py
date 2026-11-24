@@ -41,6 +41,7 @@ class PagedResult:
                     unit=props.get("unit"),
                     time=props.get("time"),
                     approval_status=props.get("approval_status"),
+                    qualifier=props.get("qualifier"),
                     raw_properties=props,
                 )
             )

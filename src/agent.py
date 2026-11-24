@@ -323,7 +323,9 @@ class USGSWaterAgent(IChatBioAgent):
                     plan.intent == QueryIntent.STATION_INVENTORY
                     or getattr(plan, "inventory_ref", None)
                 ):
-                    await handle_inventory(context, process, plan, ctx, request)
+                    await handle_inventory(
+                        context, process, plan, ctx, request, water_data_fetcher=self.water_data_fetcher
+                    )
                     return
 
                 # 4. Observation Values (Workflows 4 & 5: Discrete & Continuous)

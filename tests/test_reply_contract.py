@@ -492,29 +492,29 @@ def test_no_process_log_passes_records_or_rows_data():
 
 @pytest.mark.asyncio
 async def test_inventory_empty_artifact_has_retrieved_at():
-    """Empty inventory artifacts (0 characteristics) must include retrieved_at in metadata."""
+    """Parameter-specific empty inventory artifacts (0 matching characteristics) include retrieved_at in metadata."""
     context, process = _make_mocks()
     ctx = RequestContext(request_id="test-empty-inv")
     handle = ctx.store.put(
         kind="inventory",
         items={
             "monitoring_location_id": "USGS-0423205010",
-            "parameters": {},
+            "parameters": {"00060": {"name": "Discharge", "begin": "2020-01-01", "end": "2023-01-01"}},
             "discrete_parameters": {},
             "discrete_total_observations": 0,
         },
-        summary="empty inventory",
+        summary="inventory without phosphorus",
         sample=[],
         provenance={"source_urls": ["https://example.test/summary"]},
-        count=0,
+        count=1,
     )
     plan = QueryPlan(
         intent="station_inventory",
         inventory_ref=handle.ref,
-        filters={},
-        semantic={"station": "USGS-0423205010"},
+        filters={"parameter_code": "phosphorus"},
+        semantic={"station": "USGS-0423205010", "parameter": "phosphorus"},
     )
-    await handle_inventory(context, process, plan, ctx, request="What data is at USGS-0423205010?")
+    await handle_inventory(context, process, plan, ctx, request="Does USGS-0423205010 have phosphorus?")
     assert process.create_artifact.called
     meta = process.create_artifact.call_args.kwargs["metadata"]
     assert "retrieved_at" in meta

@@ -234,6 +234,50 @@ def search_catalog_characteristics(term: str, limit: int = 15) -> list[dict[str,
     return matches
 
 
+_CATALOG_PARAMS_CACHE: dict[str, DiscreteParameter] | None = None
+
+
+def get_catalog_parameter(pcode: str) -> DiscreteParameter | None:
+    """Look up a 5-digit parameter code in characteristics_filtered.csv."""
+    global _CATALOG_PARAMS_CACHE
+    code = pcode.strip().zfill(5)
+    if _CATALOG_PARAMS_CACHE is None:
+        ref_path = (
+            Path(__file__).resolve().parents[3]
+            / "metadata"
+            / "raw"
+            / "references"
+            / "characteristics_filtered.csv"
+        )
+        if not ref_path.exists():
+            return None
+        cache: dict[str, DiscreteParameter] = {}
+        units_map = _get_parameter_units_map()
+        try:
+            with open(ref_path, "r", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    group = row.get("characteristicGroup", "").strip()
+                    if group == "Information":
+                        continue
+                    pid = row.get("parameterCode", "").strip()
+                    if not pid or pid in cache:
+                        continue
+                    cache[pid] = DiscreteParameter(
+                        pcode=pid,
+                        characteristic_name=row.get("characteristicName", "").strip(),
+                        descriptor=row.get("characteristicNameUserSupplied", "").strip(),
+                        group=group,
+                        medium="water",
+                        unit_of_measure=units_map.get(pid, ""),
+                    )
+            if cache:
+                _CATALOG_PARAMS_CACHE = cache
+        except Exception:
+            return None
+        return cache.get(code)
+    return _CATALOG_PARAMS_CACHE.get(code)
+
+
 INORGANIC_CARBON_PATTERN = re.compile(r"\b(inorganic\s+carbon|dic|pic)\b", re.IGNORECASE)
 INORGANIC_CARBON_UNSUPPORTED_MSG = (
     "Inorganic carbon (including DIC and PIC) is not supported. "

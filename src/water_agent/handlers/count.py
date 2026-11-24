@@ -206,6 +206,7 @@ async def handle_parameter_count(
     params: dict[str, Any] = {
         "monitoringLocationIdentifier": station_id,
         "usgsPCode": pcodes,
+        "activityMediaName": "Water",
     }
     if spec is not None:
         params.update(spec.to_samples_params())

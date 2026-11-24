@@ -71,6 +71,8 @@ class SpatialQueryResult(DictAccessibleModel):
     pcodes: list[str] = Field(default_factory=list)
     pcode_breakdown: list[ParameterBreakdownItem] = Field(default_factory=list)
     mixed_modality: bool = False
+    state_name: Optional[str] = None
+    county_name: Optional[str] = None
     summary: str = ""
     error: Optional[str] = None
 
@@ -131,6 +133,7 @@ class ContinuousDailyReading(DictAccessibleModel):
     unit: Optional[str] = None
     time: Optional[str] = None
     approval_status: Optional[str] = None
+    qualifier: Optional[Any] = None
     raw_properties: dict[str, Any] = Field(default_factory=dict)
 
 

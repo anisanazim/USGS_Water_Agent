@@ -34,7 +34,15 @@ def _format_station_line(item: Any) -> str:
     return f"- `{item}`"
 
 
-def _resolve_spatial_scope(plan: QueryPlan) -> str:
+def _resolve_spatial_scope(plan: QueryPlan, stored_items: dict[str, Any] | None = None) -> str:
+    if stored_items:
+        geo_parts = []
+        if stored_items.get("county_name"):
+            geo_parts.append(str(stored_items["county_name"]))
+        if stored_items.get("state_name"):
+            geo_parts.append(str(stored_items["state_name"]))
+        if geo_parts:
+            return ", ".join(geo_parts)
     geo_parts = []
     if plan.semantic.get("county"):
         geo_parts.append(str(plan.semantic["county"]))
@@ -81,10 +89,15 @@ async def handle_spatial(
             or (f"parameter {pcode}" if pcode else "the requested parameter")
         )
         geo_parts = []
-        if plan.semantic.get("county"):
-            geo_parts.append(plan.semantic["county"])
-        if plan.semantic.get("state"):
-            geo_parts.append(plan.semantic["state"])
+        if stored.items.get("county_name"):
+            geo_parts.append(str(stored.items["county_name"]))
+        if stored.items.get("state_name"):
+            geo_parts.append(str(stored.items["state_name"]))
+        if not geo_parts:
+            if plan.semantic.get("county"):
+                geo_parts.append(plan.semantic["county"])
+            if plan.semantic.get("state"):
+                geo_parts.append(plan.semantic["state"])
         geo_str = f" in {', '.join(geo_parts)}" if geo_parts else ""
 
         disp_family = format_family_name(family_name)
@@ -100,7 +113,7 @@ async def handle_spatial(
         return
 
     pcode = plan.filters.get("parameter_code")
-    scope = _resolve_spatial_scope(plan)
+    scope = _resolve_spatial_scope(plan, stored.items)
     breakdown: list[dict[str, Any]] = []
     highlights: list[str] = []
     notes: list[str] = []
